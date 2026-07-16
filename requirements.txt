@@ -29,5 +29,8 @@ pytest==8.4.1
 pytest-asyncio==1.0.0
 pytest-mock==3.14.1
 
+# Charts
+plotly==5.24.1
+
 # PDF export
 fpdf2==2.8.2
