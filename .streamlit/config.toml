@@ -1,0 +1,5 @@
+[server]
+# Exclude SQLite database files from the file watcher so Streamlit's
+# watchdog never touches them and avoids "dictionary changed size during
+# iteration" RuntimeErrors when the DB is written during a run.
+folderWatchBlacklist = ["*.db", "*.sqlite", "*.sqlite3", "__pycache__"]

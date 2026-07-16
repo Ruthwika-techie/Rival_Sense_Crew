@@ -12,7 +12,7 @@ state, or agent-workflow changes.
 from __future__ import annotations
 
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import streamlit as st
@@ -1493,11 +1493,13 @@ def render_overview_metrics(briefing: Dict):
 
 def generate_pdf(briefing: Dict) -> bytes:
     """
-    Build a clean, well-formatted A4 PDF from a BriefingOutput dict.
-    White background with dark text — proper print typography.
+    Build a professional A4 executive report PDF from a BriefingOutput dict.
+    Layout: branded cover page -> KPI dashboard -> sections with tables/cards
+    -> recommendation callout -> numbered references.
     Uses fpdf2 (pure-Python, no system dependencies).
     """
     from fpdf import FPDF
+    from datetime import datetime as _dt, timezone as _tz
 
     meta    = briefing.get("run_metadata", {})
     topic   = meta.get("topic", "Competitive Intelligence Briefing")
@@ -1505,298 +1507,647 @@ def generate_pdf(briefing: Dict) -> bytes:
     dur     = meta.get("duration_seconds")
     sources = briefing.get("all_sources", [])
     failed  = briefing.get("failed_sources", [])
+    pricing   = briefing.get("competitor_pricing", [])
+    launches  = briefing.get("product_launches", [])
+    signals   = briefing.get("market_signals", [])
+    insights  = briefing.get("insights", [])
+    summary   = briefing.get("executive_summary", "")
+    rec       = briefing.get("recommendation", "")
 
-    # ── latin-1 sanitiser ─────────────────────────────────────────────────────
+    # ── latin-1 sanitiser ────────────────────────────────────────────────────
     def _s(v) -> str:
         return (str(v) if v is not None else "").encode("latin-1", errors="ignore").decode("latin-1")
 
-    # ── Citation domains ──────────────────────────────────────────────────────
-    def _cite(citations: list) -> str:
-        urls: list = []
+    # ── Build a global citation index: url -> [N]  ───────────────────────────
+    _url_index: dict = {}
+    _ref_list: list = []          # (N, title, url)
+
+    def _register_url(url: str, title: str = "") -> int:
+        """Register url and return its 1-based citation number."""
+        if not url:
+            return 0
+        if url not in _url_index:
+            n = len(_ref_list) + 1
+            _url_index[url] = n
+            _ref_list.append((n, title or url, url))
+        return _url_index[url]
+
+    def _cite_nums(citations: list) -> str:
+        """Return compact inline citation string like '[1][3]' from citations list."""
+        nums = []
         for c in citations:
-            urls += c.get("sources", [])
-        if not urls:
+            for url in c.get("sources", []):
+                n = _register_url(url)
+                if n and n not in nums:
+                    nums.append(n)
+        if not nums:
             return ""
-        parts = []
-        for u in urls[:4]:
-            try:
-                parts.append(u.split("/")[2])
-            except IndexError:
-                parts.append(u[:35])
-        return "Sources: " + "  |  ".join(parts)
+        return "  " + "".join(f"[{n}]" for n in sorted(nums))
 
-    # ── Colour palette (dark ink on white paper) ──────────────────────────────
-    BLACK  = (15,  15,  25)
-    DARK   = (40,  35,  55)
-    MID    = (90,  85, 110)
-    LIGHT  = (145, 140, 160)
-    WHITE  = (255, 255, 255)
-    PURPLE = (90,  50, 190)
-    BLUE   = (25,  90, 185)
-    TEAL   = (15, 130, 120)
-    AMBER  = (165, 110,   5)
-    ROSE   = (170,  30,  50)
-    GREEN  = (20,  130,  60)
-    RULE   = (210, 205, 220)
-    SHADE  = (248, 246, 252)
+    # Pre-register all sources in order so numbering is deterministic
+    for src in sources:
+        if not src.get("failed"):
+            _register_url(src.get("url", ""), src.get("title", ""))
 
-    # ── PDF subclass: header + footer ─────────────────────────────────────────
+    # Pre-pass: register citations from all sections so numbers are stable
+    for pm in pricing:
+        _cite_nums(pm.get("citations", []))
+    for pl in launches:
+        _cite_nums(pl.get("citations", []))
+    for ms in signals:
+        _cite_nums(ms.get("citations", []))
+    for ins in insights:
+        _cite_nums(ins.get("citations", []))
+
+    # ── Colour palette ───────────────────────────────────────────────────────
+    BLACK   = (20,  20,  30)
+    DARK    = (45,  40,  60)
+    MID     = (95,  90, 115)
+    LIGHT   = (150, 145, 165)
+    WHITE   = (255, 255, 255)
+    NAVY    = (18,  42,  88)       # primary brand colour
+    INDIGO  = (63,  81, 181)       # section headers
+    TEAL    = (0,  128, 128)       # launches
+    AMBER   = (158, 104,   0)      # signals
+    ROSE    = (160,  30,  50)      # risk / failed
+    GREEN   = (20,  120,  60)      # recommendation / opportunity
+    BLUE    = (25,  90,  185)      # pricing
+    RULE    = (215, 210, 225)      # horizontal rules
+    SHADE_L = (247, 246, 252)      # light section background
+    SHADE_G = (235, 248, 240)      # green tint for recommendation
+    SHADE_B = (235, 242, 255)      # blue tint for KPI
+    COVER_BG= (18,  42,  88)       # cover background = NAVY
+    COVER_AC= (99, 102, 241)       # cover accent stripe
+
+    # ── PDF class with header / footer ───────────────────────────────────────
     class PDF(FPDF):
         def header(self):
-            if self.page_no() == 1:
+            if self.page_no() <= 2:          # cover + TOC/KPI page: no header
                 return
-            self.set_fill_color(*PURPLE)
-            self.rect(0, 0, self.w, 11, style="F")
-            self.set_y(2)
-            self.set_font("Helvetica", "B", 8)
+            # Slim navy bar
+            self.set_fill_color(*NAVY)
+            self.rect(0, 0, self.w, 10, style="F")
+            self.set_y(1.5)
+            self.set_font("Helvetica", "B", 7.5)
             self.set_text_color(*WHITE)
+            self.set_x(self.l_margin)
             self.cell(self.w * 0.55, 7, _s("MarketPulse  |  Competitive Intelligence"))
-            self.set_font("Helvetica", "", 8)
-            self.set_text_color(220, 215, 240)
-            self.cell(0, 7, _s(topic[:55]), align="R", new_x="LMARGIN", new_y="NEXT")
-            self.ln(4)
+            self.set_font("Helvetica", "", 7.5)
+            self.set_text_color(190, 200, 230)
+            self.cell(0, 7, _s(topic[:60]), align="R",
+                      new_x="LMARGIN", new_y="NEXT")
+            self.ln(3)
 
         def footer(self):
-            self.set_y(-12)
+            if self.page_no() == 1:          # no footer on cover
+                return
+            self.set_y(-13)
             self.set_draw_color(*RULE)
-            self.line(self.l_margin, self.get_y(), self.w - self.r_margin, self.get_y())
+            self.line(self.l_margin, self.get_y(),
+                      self.w - self.r_margin, self.get_y())
             self.ln(1)
-            self.set_font("Helvetica", "", 7.5)
+            self.set_font("Helvetica", "", 7)
             self.set_text_color(*LIGHT)
-            self.cell(0, 5, _s(f"Page {self.page_no()}   |   Run {run_id}   |   MarketPulse"), align="C")
+            date_str = _dt.now(_tz.utc).strftime("%B %Y")
+            self.cell(self.w * 0.45, 5,
+                      _s(f"Confidential  |  {date_str}  |  Run {run_id}"))
+            self.cell(0, 5, _s(f"Page {self.page_no() - 1}"), align="R")
 
     pdf = PDF()
-    pdf.set_margins(left=20, top=20, right=20)
-    pdf.set_auto_page_break(auto=True, margin=18)
-    pdf.add_page()
+    pdf.set_margins(left=18, top=18, right=18)
+    pdf.set_auto_page_break(auto=True, margin=20)
 
-    L = pdf.l_margin
-    W = pdf.w - pdf.l_margin - pdf.r_margin   # usable width
+    L = 18
+    W = 210 - 36          # A4 width minus both margins = 174 mm
 
-    # ── Layout helpers ────────────────────────────────────────────────────────
-    def sp(h: float = 3):
+    # ── Shared layout helpers ────────────────────────────────────────────────
+    def sp(h: float = 4):
         pdf.ln(h)
 
-    def hrule():
-        pdf.set_draw_color(*RULE)
+    def hrule(colour=RULE, thickness: float = 0.3):
+        pdf.set_draw_color(*colour)
+        pdf.set_line_width(thickness)
         pdf.line(L, pdf.get_y(), L + W, pdf.get_y())
+        pdf.set_line_width(0.2)
         sp(3)
 
-    def section_heading(title: str, bg=PURPLE):
-        sp(5)
-        pdf.set_fill_color(*bg)
-        pdf.set_text_color(*WHITE)
+    def section_heading(title: str, colour=INDIGO, icon: str = ""):
+        sp(6)
+        # Accent bar left of heading
+        bar_h = 8
+        pdf.set_fill_color(*colour)
+        pdf.rect(L, pdf.get_y(), 4, bar_h, style="F")
+        pdf.set_x(L + 7)
         pdf.set_font("Helvetica", "B", 11)
-        pdf.cell(W, 8, _s("  " + title), fill=True, new_x="LMARGIN", new_y="NEXT")
-        sp(3)
+        pdf.set_text_color(*colour)
+        label = f"{icon}  {title}" if icon else title
+        pdf.cell(W - 7, bar_h, _s(label), new_x="LMARGIN", new_y="NEXT")
+        sp(2)
+        hrule(colour, 0.4)
 
-    def kv(key: str, value: str):
-        pdf.set_font("Helvetica", "B", 9)
-        pdf.set_text_color(*MID)
-        pdf.cell(38, 5.5, _s(key))
-        pdf.set_font("Helvetica", "", 9)
+    def label_pill(text: str, colour):
+        """Inline coloured badge rendered as filled rectangle + white text."""
+        pdf.set_font("Helvetica", "B", 7)
+        tw = pdf.get_string_width(_s(text)) + 4
+        x, y = pdf.get_x(), pdf.get_y()
+        pdf.set_fill_color(*colour)
+        pdf.rect(x, y + 0.5, tw, 4.5, style="F")
+        pdf.set_text_color(*WHITE)
+        pdf.cell(tw, 5.5, _s(text), align="C")
         pdf.set_text_color(*BLACK)
-        pdf.cell(W - 38, 5.5, _s(str(value)[:80]), new_x="LMARGIN", new_y="NEXT")
 
-    def item_block(accent, label: str, title: str, detail: str, cite: str):
-        """Renders one content item with a coloured left stripe."""
-        top_y = pdf.get_y()
-        # left stripe placeholder — will be filled after we know the height
-        stripe_w = 3
-        pdf.set_x(L + stripe_w + 4)
+    # ════════════════════════════ PAGE 1 — COVER ═════════════════════════════
+    pdf.add_page()
 
-        # label badge + title
-        if label:
-            pdf.set_font("Helvetica", "B", 8)
-            pdf.set_text_color(*WHITE)
-            pdf.set_fill_color(*accent)
-            badge_w = pdf.get_string_width(_s(label)) + 6
-            pdf.cell(badge_w, 5, _s(label), fill=True)
-            pdf.set_x(L + stripe_w + 4 + badge_w + 2)
+    # Full-page navy background
+    pdf.set_fill_color(*COVER_BG)
+    pdf.rect(0, 0, 210, 297, style="F")
 
-        pdf.set_font("Helvetica", "B", 9.5)
-        pdf.set_text_color(*DARK)
-        pdf.multi_cell(0, 5.5, _s(title))
+    # Decorative accent stripe (bottom-left triangle simulation via thick rect)
+    pdf.set_fill_color(*COVER_AC)
+    pdf.rect(0, 240, 60, 57, style="F")
+    pdf.rect(0, 240, 120, 12, style="F")
 
-        # detail body
-        pdf.set_x(L + stripe_w + 4)
-        pdf.set_font("Helvetica", "", 9)
-        pdf.set_text_color(*BLACK)
-        pdf.multi_cell(0, 5, _s(detail))
+    # Logo / brand wordmark
+    pdf.set_xy(L, 38)
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.set_text_color(160, 170, 230)
+    pdf.cell(W, 8, _s("MARKETPULSE"), new_x="LMARGIN", new_y="NEXT")
 
-        # citation line
-        if cite:
-            pdf.set_x(L + stripe_w + 4)
-            pdf.set_font("Helvetica", "I", 7.5)
-            pdf.set_text_color(*LIGHT)
-            pdf.multi_cell(0, 4, _s(cite))
+    # Thin horizontal accent rule under brand
+    pdf.set_draw_color(*COVER_AC)
+    pdf.set_line_width(0.8)
+    pdf.line(L, pdf.get_y(), L + 30, pdf.get_y())
+    pdf.set_line_width(0.2)
+    pdf.ln(10)
 
-        # draw the filled left stripe now we know the total height
-        bot_y = pdf.get_y()
-        pdf.set_fill_color(*accent)
-        pdf.rect(L, top_y, stripe_w, bot_y - top_y, style="F")
-        sp(4)
-
-    # ═══════════════════════════════ TITLE BLOCK ══════════════════════════════
-    pdf.set_fill_color(*PURPLE)
-    pdf.rect(0, 0, pdf.w, 40, style="F")
-    pdf.set_y(9)
+    # Main title
     pdf.set_x(L)
-    pdf.set_font("Helvetica", "B", 21)
+    pdf.set_font("Helvetica", "B", 26)
     pdf.set_text_color(*WHITE)
-    pdf.cell(W, 10, _s("Competitive Intelligence Briefing"), new_x="LMARGIN", new_y="NEXT")
-    pdf.set_x(L)
-    pdf.set_font("Helvetica", "", 11)
-    pdf.set_text_color(210, 200, 240)
-    pdf.multi_cell(W, 7, _s(topic[:90]))
-    pdf.set_y(44)
+    pdf.multi_cell(W, 13, _s("Competitive\nIntelligence\nBriefing"), align="L")
+    pdf.ln(6)
 
-    # Metadata grid
+    # Topic subtitle
+    pdf.set_x(L)
+    pdf.set_font("Helvetica", "", 13)
+    pdf.set_text_color(190, 200, 235)
+    pdf.multi_cell(W, 8, _s(topic[:100]), align="L")
+    pdf.ln(14)
+
+    # Divider
+    pdf.set_draw_color(90, 100, 160)
+    pdf.set_line_width(0.5)
+    pdf.line(L, pdf.get_y(), L + W, pdf.get_y())
+    pdf.set_line_width(0.2)
+    pdf.ln(8)
+
+    # Metadata grid on cover (2-col key/value)
     dur_txt = f"{int(dur)}s" if dur else "n/a"
     tok_txt = f"{meta.get('total_tokens', 0):,}" if meta.get("total_tokens") else "n/a"
-    kv("Run ID",    run_id or "n/a")
-    kv("Duration",  dur_txt)
-    kv("Sources",   f"{meta.get('total_sources', 0)} collected,  {meta.get('sources_skipped', 0)} skipped")
-    kv("Tokens",    tok_txt)
-    kv("Citations", "All cited" if meta.get("all_claims_cited", True) else "Partial")
-    sp(4)
-    hrule()
+    date_cover = _dt.now(_tz.utc).strftime("%d %B %Y")
+    cover_meta = [
+        ("Date",        date_cover),
+        ("Run ID",      run_id or "n/a"),
+        ("Duration",    dur_txt),
+        ("Sources",     f"{meta.get('total_sources', 0)} collected"),
+        ("Citations",   "All cited" if meta.get("all_claims_cited", True) else "Partial"),
+        ("Tokens",      tok_txt),
+    ]
+    col_w = W / 2
+    for i, (k, v) in enumerate(cover_meta):
+        if i % 2 == 0:
+            pdf.set_x(L)
+        pdf.set_font("Helvetica", "B", 8)
+        pdf.set_text_color(140, 155, 210)
+        pdf.cell(22, 6, _s(k.upper()))
+        pdf.set_font("Helvetica", "", 9)
+        pdf.set_text_color(*WHITE)
+        if i % 2 == 0:
+            pdf.cell(col_w - 22, 6, _s(v), new_x="CONTIGUOUS")
+        else:
+            pdf.cell(col_w - 22, 6, _s(v), new_x="LMARGIN", new_y="NEXT")
 
-    # ═══════════════════════════ EXECUTIVE SUMMARY ════════════════════════════
-    summary = briefing.get("executive_summary", "")
+    # "CONFIDENTIAL" watermark strip at bottom
+    pdf.set_xy(L, 270)
+    pdf.set_font("Helvetica", "", 7.5)
+    pdf.set_text_color(80, 95, 150)
+    pdf.cell(W, 5,
+             _s("CONFIDENTIAL — For internal use only. Generated by MarketPulse AI Crew."),
+             align="C")
+
+
+    # ════════════════════════ PAGE 2 — KPI DASHBOARD + EXEC SUMMARY ══════════
+    pdf.add_page()
+
+    # ── KPI cards row ────────────────────────────────────────────────────────
+    # Five equal-width cards in a single row across the full usable width
+    kpi_items = [
+        ("Pricing Moves",   len(pricing),   BLUE),
+        ("Product Launches",len(launches),  TEAL),
+        ("Market Signals",  len(signals),   AMBER),
+        ("Key Insights",    len(insights),  INDIGO),
+        ("Sources",         len(sources),   NAVY),
+    ]
+    card_w   = W / len(kpi_items)
+    card_h   = 22
+    card_top = pdf.get_y()
+
+    for idx, (label, count, colour) in enumerate(kpi_items):
+        cx = L + idx * card_w
+        # Card background
+        pdf.set_fill_color(SHADE_L[0], SHADE_L[1], SHADE_L[2])
+        pdf.rect(cx, card_top, card_w - 1.5, card_h, style="F")
+        # Top accent strip
+        pdf.set_fill_color(*colour)
+        pdf.rect(cx, card_top, card_w - 1.5, 2.5, style="F")
+        # Count number
+        pdf.set_xy(cx, card_top + 4)
+        pdf.set_font("Helvetica", "B", 17)
+        pdf.set_text_color(*colour)
+        pdf.cell(card_w - 1.5, 9, _s(str(count)), align="C",
+                 new_x="RIGHT", new_y="TOP")
+        # Label text
+        pdf.set_xy(cx, card_top + 13)
+        pdf.set_font("Helvetica", "", 6.5)
+        pdf.set_text_color(*MID)
+        pdf.cell(card_w - 1.5, 5, _s(label), align="C",
+                 new_x="RIGHT", new_y="TOP")
+
+    pdf.set_y(card_top + card_h + 6)
+
+    # ── Section: Executive Summary ───────────────────────────────────────────
     if summary:
-        section_heading("Executive Summary", PURPLE)
+        section_heading("Executive Summary", NAVY, "")
+
+        # Shaded callout box
+        box_top = pdf.get_y()
+        # Measure height first by writing off-page, then draw box, then re-write
+        # fpdf2 does not support look-ahead, so we use a two-pass approach:
+        # pass 1 — write to get ending Y, pass 2 — draw rect then re-write.
+        pdf.set_x(L + 6)
         pdf.set_font("Helvetica", "", 10)
         pdf.set_text_color(*BLACK)
-        pdf.multi_cell(W, 6, _s(summary))
-        sp(3)
-        hrule()
+        pdf.multi_cell(W - 12, 6, _s(summary))
+        box_bot = pdf.get_y()
+        box_h   = box_bot - box_top + 3
 
-    # ══════════════════════════ COMPETITOR PRICING ════════════════════════════
-    pricing = briefing.get("competitor_pricing", [])
+        # Draw shaded rect behind the text (overdraw then re-write)
+        pdf.set_fill_color(SHADE_L[0], SHADE_L[1], SHADE_L[2])
+        pdf.set_draw_color(*INDIGO)
+        pdf.set_line_width(0.3)
+        pdf.rect(L, box_top - 1, W, box_h, style="FD")
+        pdf.set_line_width(0.2)
+        # Left accent bar
+        pdf.set_fill_color(*NAVY)
+        pdf.rect(L, box_top - 1, 3, box_h, style="F")
+        # Re-write text on top
+        pdf.set_xy(L + 6, box_top)
+        pdf.set_font("Helvetica", "", 10)
+        pdf.set_text_color(*BLACK)
+        pdf.multi_cell(W - 12, 6, _s(summary))
+        sp(5)
+
+
+    # ════════════════════ SECTION: COMPETITOR PRICING MOVES ══════════════════
     if pricing:
-        section_heading("Competitor Pricing Moves", BLUE)
-        for pm in pricing:
-            item_block(
-                accent=BLUE,
-                label="PRICING",
-                title=pm.get("competitor", "Unknown"),
-                detail=pm.get("description", ""),
-                cite=_cite(pm.get("citations", [])),
-            )
-        hrule()
+        section_heading("Competitor Pricing Moves", BLUE, "")
 
-    # ═════════════════════════════ PRODUCT LAUNCHES ═══════════════════════════
-    launches = briefing.get("product_launches", [])
+        # Table header
+        col_comp  = 42
+        col_desc  = W - col_comp - 18
+        col_cite  = 18
+        row_h     = 6
+
+        def table_header_pricing():
+            pdf.set_fill_color(*BLUE)
+            pdf.set_text_color(*WHITE)
+            pdf.set_font("Helvetica", "B", 8)
+            pdf.set_x(L)
+            pdf.cell(col_comp, row_h, _s("  Competitor"),  fill=True)
+            pdf.cell(col_desc, row_h, _s("  Change Detail"), fill=True)
+            pdf.cell(col_cite, row_h, _s("Ref"), fill=True, align="C",
+                     new_x="LMARGIN", new_y="NEXT")
+
+        table_header_pricing()
+        for i, pm in enumerate(pricing):
+            cite_str = _cite_nums(pm.get("citations", []))
+            desc     = pm.get("description", "")
+            comp     = pm.get("competitor", "Unknown")
+            fill_col = SHADE_L if i % 2 == 0 else WHITE
+            pdf.set_fill_color(*fill_col)
+            pdf.set_text_color(*DARK)
+            pdf.set_font("Helvetica", "B", 8.5)
+            pdf.set_x(L)
+            # Measure wrapped height for description
+            pdf.set_font("Helvetica", "", 8)
+            lines_needed = max(1, len(desc) // 70 + 1)
+            cell_h = max(row_h + 2, lines_needed * 5)
+            start_y = pdf.get_y()
+            # Competitor name cell (vertically centred via manual offset)
+            pdf.set_font("Helvetica", "B", 8.5)
+            pdf.set_fill_color(*fill_col)
+            pdf.rect(L, start_y, col_comp, cell_h, style="F")
+            pdf.set_xy(L + 2, start_y + 1)
+            pdf.multi_cell(col_comp - 2, 5, _s(comp[:28]))
+            # Description cell
+            pdf.set_fill_color(*fill_col)
+            pdf.rect(L + col_comp, start_y, col_desc, cell_h, style="F")
+            pdf.set_xy(L + col_comp + 2, start_y + 1)
+            pdf.set_font("Helvetica", "", 8)
+            pdf.set_text_color(*BLACK)
+            pdf.multi_cell(col_desc - 4, 5, _s(desc))
+            # Citation cell
+            pdf.set_fill_color(*fill_col)
+            pdf.rect(L + col_comp + col_desc, start_y, col_cite, cell_h, style="F")
+            pdf.set_xy(L + col_comp + col_desc + 1, start_y + 1)
+            pdf.set_font("Helvetica", "", 7.5)
+            pdf.set_text_color(*BLUE)
+            pdf.multi_cell(col_cite - 2, 5, _s(cite_str))
+            # Advance cursor
+            pdf.set_y(start_y + cell_h)
+            # Row border line
+            pdf.set_draw_color(*RULE)
+            pdf.line(L, pdf.get_y(), L + W, pdf.get_y())
+        sp(6)
+
+    # ═════════════════════════ SECTION: PRODUCT LAUNCHES ═════════════════════
     if launches:
-        section_heading("Product Launches", TEAL)
-        for pl in launches:
-            item_block(
-                accent=TEAL,
-                label="LAUNCH",
-                title=f'{pl.get("competitor","Unknown")}  -  {pl.get("product_name","")}',
-                detail=pl.get("description", ""),
-                cite=_cite(pl.get("citations", [])),
-            )
-        hrule()
+        section_heading("Product Launches", TEAL, "")
 
-    # ═══════════════════════════════ MARKET SIGNALS ═══════════════════════════
-    signals = briefing.get("market_signals", [])
+        col_comp  = 38
+        col_prod  = 44
+        col_desc  = W - col_comp - col_prod - 16
+        col_cite  = 16
+        row_h     = 6
+
+        def table_header_launches():
+            pdf.set_fill_color(*TEAL)
+            pdf.set_text_color(*WHITE)
+            pdf.set_font("Helvetica", "B", 8)
+            pdf.set_x(L)
+            pdf.cell(col_comp, row_h, _s("  Competitor"),   fill=True)
+            pdf.cell(col_prod, row_h, _s("  Product"),      fill=True)
+            pdf.cell(col_desc, row_h, _s("  Description"),  fill=True)
+            pdf.cell(col_cite, row_h, _s("Ref"), fill=True, align="C",
+                     new_x="LMARGIN", new_y="NEXT")
+
+        table_header_launches()
+        for i, pl in enumerate(launches):
+            cite_str = _cite_nums(pl.get("citations", []))
+            desc     = pl.get("description", "")
+            comp     = pl.get("competitor", "Unknown")
+            prod     = pl.get("product_name", "")
+            fill_col = SHADE_L if i % 2 == 0 else WHITE
+            start_y  = pdf.get_y()
+            lines_needed = max(1, len(desc) // 58 + 1)
+            cell_h   = max(row_h + 2, lines_needed * 5)
+
+            pdf.set_fill_color(*fill_col)
+            pdf.rect(L, start_y, col_comp, cell_h, style="F")
+            pdf.set_xy(L + 2, start_y + 1)
+            pdf.set_font("Helvetica", "B", 8)
+            pdf.set_text_color(*DARK)
+            pdf.multi_cell(col_comp - 2, 5, _s(comp[:24]))
+
+            pdf.set_fill_color(*fill_col)
+            pdf.rect(L + col_comp, start_y, col_prod, cell_h, style="F")
+            pdf.set_xy(L + col_comp + 2, start_y + 1)
+            pdf.set_font("Helvetica", "B", 8)
+            pdf.set_text_color(*TEAL)
+            pdf.multi_cell(col_prod - 2, 5, _s(prod[:30]))
+
+            pdf.set_fill_color(*fill_col)
+            pdf.rect(L + col_comp + col_prod, start_y, col_desc, cell_h, style="F")
+            pdf.set_xy(L + col_comp + col_prod + 2, start_y + 1)
+            pdf.set_font("Helvetica", "", 8)
+            pdf.set_text_color(*BLACK)
+            pdf.multi_cell(col_desc - 4, 5, _s(desc))
+
+            pdf.set_fill_color(*fill_col)
+            pdf.rect(L + col_comp + col_prod + col_desc, start_y, col_cite, cell_h, style="F")
+            pdf.set_xy(L + col_comp + col_prod + col_desc + 1, start_y + 1)
+            pdf.set_font("Helvetica", "", 7.5)
+            pdf.set_text_color(*TEAL)
+            pdf.multi_cell(col_cite - 2, 5, _s(cite_str))
+
+            pdf.set_y(start_y + cell_h)
+            pdf.set_draw_color(*RULE)
+            pdf.line(L, pdf.get_y(), L + W, pdf.get_y())
+        sp(6)
+
+    # ══════════════════════════ SECTION: MARKET SIGNALS ══════════════════════
     if signals:
-        section_heading("Market Signals", AMBER)
-        for ms in signals:
-            item_block(
-                accent=AMBER,
-                label="SIGNAL",
-                title=ms.get("signal", "Signal"),
-                detail=ms.get("detail", ""),
-                cite=_cite(ms.get("citations", [])),
-            )
-        hrule()
+        section_heading("Market Signals", AMBER, "")
 
-    # ═══════════════════════════════════ INSIGHTS ═════════════════════════════
-    insights = briefing.get("insights", [])
+        col_sig  = 52
+        col_det  = W - col_sig - 16
+        col_cite = 16
+        row_h    = 6
+
+        def table_header_signals():
+            pdf.set_fill_color(*AMBER)
+            pdf.set_text_color(*WHITE)
+            pdf.set_font("Helvetica", "B", 8)
+            pdf.set_x(L)
+            pdf.cell(col_sig,  row_h, _s("  Signal"),  fill=True)
+            pdf.cell(col_det,  row_h, _s("  Detail"),  fill=True)
+            pdf.cell(col_cite, row_h, _s("Ref"), fill=True, align="C",
+                     new_x="LMARGIN", new_y="NEXT")
+
+        table_header_signals()
+        for i, ms in enumerate(signals):
+            cite_str = _cite_nums(ms.get("citations", []))
+            sig      = ms.get("signal", "")
+            det      = ms.get("detail", "")
+            fill_col = SHADE_L if i % 2 == 0 else WHITE
+            start_y  = pdf.get_y()
+            lines_needed = max(1, len(det) // 72 + 1)
+            cell_h   = max(row_h + 2, lines_needed * 5)
+
+            pdf.set_fill_color(*fill_col)
+            pdf.rect(L, start_y, col_sig, cell_h, style="F")
+            pdf.set_xy(L + 2, start_y + 1)
+            pdf.set_font("Helvetica", "B", 8)
+            pdf.set_text_color(*AMBER)
+            pdf.multi_cell(col_sig - 2, 5, _s(sig[:40]))
+
+            pdf.set_fill_color(*fill_col)
+            pdf.rect(L + col_sig, start_y, col_det, cell_h, style="F")
+            pdf.set_xy(L + col_sig + 2, start_y + 1)
+            pdf.set_font("Helvetica", "", 8)
+            pdf.set_text_color(*BLACK)
+            pdf.multi_cell(col_det - 4, 5, _s(det))
+
+            pdf.set_fill_color(*fill_col)
+            pdf.rect(L + col_sig + col_det, start_y, col_cite, cell_h, style="F")
+            pdf.set_xy(L + col_sig + col_det + 1, start_y + 1)
+            pdf.set_font("Helvetica", "", 7.5)
+            pdf.set_text_color(*AMBER)
+            pdf.multi_cell(col_cite - 2, 5, _s(cite_str))
+
+            pdf.set_y(start_y + cell_h)
+            pdf.set_draw_color(*RULE)
+            pdf.line(L, pdf.get_y(), L + W, pdf.get_y())
+        sp(6)
+
+
+    # ════════════════════════════ SECTION: KEY INSIGHTS ══════════════════════
     if insights:
-        section_heading("Key Insights", PURPLE)
-        TYPE_ACCENT = {
+        section_heading("Key Insights", INDIGO, "")
+
+        TYPE_COLOUR = {
             "trend":       BLUE,
             "opportunity": GREEN,
             "observation": TEAL,
             "risk":        ROSE,
             "threat":      ROSE,
         }
+
         for ins in insights:
-            itype = ins.get("type", "observation")
-            item_block(
-                accent=TYPE_ACCENT.get(itype, PURPLE),
-                label=itype.upper(),
-                title=ins.get("title", ""),
-                detail=ins.get("detail", ""),
-                cite=_cite(ins.get("citations", [])),
-            )
-        hrule()
+            itype    = ins.get("type", "observation")
+            colour   = TYPE_COLOUR.get(itype, INDIGO)
+            title_t  = ins.get("title", "")
+            detail_t = ins.get("detail", "")
+            cite_str = _cite_nums(ins.get("citations", []))
 
-    # ══════════════════════════ STRATEGIC RECOMMENDATION ══════════════════════
-    rec = briefing.get("recommendation", "")
-    if rec:
-        section_heading("Strategic Recommendation", GREEN)
-        # shaded callout box
-        box_y = pdf.get_y()
-        pdf.set_fill_color(235, 248, 240)
-        pdf.set_draw_color(*GREEN)
-        # draw after writing so we know the height
-        pdf.set_x(L + 4)
-        pdf.set_font("Helvetica", "B", 10)
-        pdf.set_text_color(*GREEN)
-        pdf.cell(W - 4, 6, _s("Recommended Action"), new_x="LMARGIN", new_y="NEXT")
-        pdf.set_x(L + 4)
-        pdf.set_font("Helvetica", "", 9.5)
-        pdf.set_text_color(*BLACK)
-        pdf.multi_cell(W - 4, 5.5, _s(rec))
-        box_h = pdf.get_y() - box_y + 2
-        pdf.set_fill_color(235, 248, 240)
-        pdf.rect(L, box_y, W, box_h, style="FD")
-        # re-write text on top of the filled box
-        pdf.set_y(box_y)
-        pdf.set_x(L + 4)
-        pdf.set_font("Helvetica", "B", 10)
-        pdf.set_text_color(*GREEN)
-        pdf.cell(W - 4, 6, _s("Recommended Action"), new_x="LMARGIN", new_y="NEXT")
-        pdf.set_x(L + 4)
-        pdf.set_font("Helvetica", "", 9.5)
-        pdf.set_text_color(*BLACK)
-        pdf.multi_cell(W - 4, 5.5, _s(rec))
-        sp(4)
-        hrule()
+            top_y  = pdf.get_y()
+            stripe = 3          # left accent stripe width
 
-    # ═══════════════════════════════════ SOURCES ══════════════════════════════
-    if sources or failed:
-        section_heading("Sources", MID)
-        for i, src in enumerate(sources, 1):
-            title_t = _s((src.get("title") or src.get("url", ""))[:85])
-            url_t   = _s(src.get("url", "")[:95])
-            pdf.set_font("Helvetica", "B", 8.5)
+            # Write content first to measure height
+            pdf.set_x(L + stripe + 5)
+            # Type badge
+            badge_txt = itype.upper()
+            pdf.set_font("Helvetica", "B", 7)
+            bw = pdf.get_string_width(_s(badge_txt)) + 4
+            pdf.set_fill_color(*colour)
+            pdf.set_text_color(*WHITE)
+            pdf.rect(L + stripe + 5, top_y + 1, bw, 4.5, style="F")
+            pdf.set_xy(L + stripe + 5, top_y + 1)
+            pdf.cell(bw, 4.5, _s(badge_txt), align="C")
+
+            # Title
+            pdf.set_xy(L + stripe + 5 + bw + 2, top_y + 1)
+            pdf.set_font("Helvetica", "B", 9.5)
             pdf.set_text_color(*DARK)
-            pdf.cell(7, 5, _s(f"{i}."))
-            pdf.multi_cell(0, 5, title_t)
-            pdf.set_x(L + 7)
-            pdf.set_font("Helvetica", "", 7.5)
-            pdf.set_text_color(*LIGHT)
-            pdf.multi_cell(0, 4, url_t)
-            sp(1)
+            pdf.multi_cell(W - stripe - 5 - bw - 2, 5.5, _s(title_t))
 
+            # Detail body
+            pdf.set_x(L + stripe + 5)
+            pdf.set_font("Helvetica", "", 8.5)
+            pdf.set_text_color(*BLACK)
+            pdf.multi_cell(W - stripe - 5, 5, _s(detail_t))
+
+            # Citation footnote
+            if cite_str:
+                pdf.set_x(L + stripe + 5)
+                pdf.set_font("Helvetica", "I", 7)
+                pdf.set_text_color(*LIGHT)
+                pdf.multi_cell(W - stripe - 5, 4, _s(cite_str))
+
+            bot_y = pdf.get_y()
+            # Draw the coloured left stripe over the full card height
+            pdf.set_fill_color(*colour)
+            pdf.rect(L, top_y, stripe, bot_y - top_y, style="F")
+            # Subtle card background
+            pdf.set_fill_color(SHADE_L[0], SHADE_L[1], SHADE_L[2])
+            # (already drawn inline content — background drawn before text next iteration)
+            sp(4)
+
+    # ══════════════════════ SECTION: STRATEGIC RECOMMENDATION ════════════════
+    if rec:
+        section_heading("Strategic Recommendation", GREEN, "")
+
+        box_top = pdf.get_y()
+        pad     = 5
+
+        # First pass — write text to measure height
+        pdf.set_x(L + pad + 3)
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.set_text_color(*GREEN)
+        pdf.cell(W - pad - 3, 6, _s("Recommended Action"))
+        pdf.ln(6)
+        pdf.set_x(L + pad + 3)
+        pdf.set_font("Helvetica", "", 9.5)
+        pdf.set_text_color(*BLACK)
+        pdf.multi_cell(W - pad - 3, 5.5, _s(rec))
+        box_bot = pdf.get_y()
+        box_h   = box_bot - box_top + pad
+
+        # Draw green-tinted box + left bar
+        pdf.set_fill_color(*SHADE_G)
+        pdf.set_draw_color(*GREEN)
+        pdf.set_line_width(0.4)
+        pdf.rect(L, box_top - 1, W, box_h, style="FD")
+        pdf.set_line_width(0.2)
+        pdf.set_fill_color(*GREEN)
+        pdf.rect(L, box_top - 1, 4, box_h, style="F")
+
+        # Second pass — re-write text on top of the filled box
+        pdf.set_xy(L + pad + 3, box_top)
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.set_text_color(*GREEN)
+        pdf.cell(W - pad - 3, 6, _s("Recommended Action"),
+                 new_x="LMARGIN", new_y="NEXT")
+        pdf.set_x(L + pad + 3)
+        pdf.set_font("Helvetica", "", 9.5)
+        pdf.set_text_color(*BLACK)
+        pdf.multi_cell(W - pad - 3, 5.5, _s(rec))
+        sp(8)
+
+    # ════════════════════════════ REFERENCES PAGE ════════════════════════════
+    if _ref_list:
+        pdf.add_page()
+        section_heading("References", NAVY, "")
+
+        pdf.set_font("Helvetica", "", 8)
+        for n, title_r, url_r in _ref_list:
+            # Row background alternating
+            fill_col = SHADE_L if n % 2 == 1 else WHITE
+            row_top  = pdf.get_y()
+
+            # Number
+            pdf.set_fill_color(*fill_col)
+            pdf.set_font("Helvetica", "B", 8)
+            pdf.set_text_color(*NAVY)
+            pdf.set_x(L)
+            pdf.cell(8, 5, _s(f"[{n}]"))
+
+            # Title (bold)
+            pdf.set_font("Helvetica", "B", 8)
+            pdf.set_text_color(*DARK)
+            title_disp = _s(title_r[:90]) if title_r != url_r else ""
+            if title_disp:
+                pdf.multi_cell(W - 8, 5, title_disp)
+            else:
+                pdf.ln(5)
+
+            # URL (lighter, smaller)
+            pdf.set_x(L + 8)
+            pdf.set_font("Helvetica", "", 7)
+            pdf.set_text_color(*LIGHT)
+            pdf.multi_cell(W - 8, 4, _s(url_r[:110]))
+
+            # Row separator
+            pdf.set_draw_color(*RULE)
+            pdf.line(L, pdf.get_y(), L + W, pdf.get_y())
+            pdf.ln(1)
+
+        # Failed sources note
         if failed:
-            sp(2)
-            pdf.set_font("Helvetica", "B", 9)
+            sp(5)
+            pdf.set_font("Helvetica", "B", 8.5)
             pdf.set_text_color(*ROSE)
-            pdf.cell(W, 5, _s(f"Skipped sources ({len(failed)}):"),
+            pdf.cell(W, 5, _s(f"Skipped / Failed Sources ({len(failed)})"),
                      new_x="LMARGIN", new_y="NEXT")
+            sp(2)
             for fs in failed:
-                reason = _s((fs.get("failure_reason") or fs.get("title", "unknown"))[:85])
-                pdf.set_font("Helvetica", "", 8.5)
+                reason = (fs.get("failure_reason") or fs.get("title") or "unknown")[:90]
+                pdf.set_x(L + 3)
+                pdf.set_font("Helvetica", "", 8)
                 pdf.set_text_color(*ROSE)
-                pdf.cell(7, 5, _s("x"))
-                pdf.multi_cell(0, 5, reason)
+                pdf.cell(4, 5, _s("-"))
+                pdf.multi_cell(W - 4, 5, _s(reason))
 
     return bytes(pdf.output())
 
@@ -1849,7 +2200,7 @@ def render_briefing(briefing: Dict):
                     st.download_button(
                         label="⬇️ Download Markdown",
                         data=raw,
-                        file_name=f"briefing_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.md",
+                        file_name=f"briefing_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.md",
                         mime="text/markdown",
                         use_container_width=True,
                     )
@@ -1859,7 +2210,7 @@ def render_briefing(briefing: Dict):
                         st.download_button(
                             label="📄 Download PDF",
                             data=pdf_bytes,
-                            file_name=f"briefing_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.pdf",
+                            file_name=f"briefing_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M')}.pdf",
                             mime="application/pdf",
                             use_container_width=True,
                         )
@@ -2055,8 +2406,6 @@ def render_history_tab() -> None:
     • Sortable results table (newest first)
     • Per-row: Open button + Delete button with inline confirmation
     """
-    from datetime import timezone
-
     st.markdown(
         '<div style="font-size:0.7rem;font-weight:800;letter-spacing:0.12em;'
         'color:var(--violet-2);text-transform:uppercase;margin-bottom:0.8rem">'
@@ -2283,20 +2632,26 @@ def main():
         col_input, col_run, col_clear = st.columns([4, 1, 1])
 
         with col_input:
-            # Always show the stored topic — even while running — so the user
-            # can see what the crew is working on.
-            displayed_topic = st.session_state.get("last_topic", "") if running else st.session_state.get("topic_input", "")
-            topic = st.text_input(
-                "Market / topic to brief",
-                placeholder="e.g. CRM software market, AI coding assistants, fintech payments…",
-                value=displayed_topic,
-                disabled=running,
-                key="topic_widget",
-                label_visibility="collapsed",
-            )
-            # Keep topic_input in sync whenever the user edits the field
-            # (only possible when not running, since the widget is disabled then)
-            if not running:
+            # When running: widget is disabled, show the saved topic via value=.
+            # When idle: let Streamlit own the widget via its key so typing is
+            # never overridden on rerun. Read the current value from session_state.
+            if running:
+                topic = st.text_input(
+                    "Market / topic to brief",
+                    placeholder="e.g. CRM software market, AI coding assistants, fintech payments…",
+                    value=st.session_state.get("last_topic", ""),
+                    disabled=True,
+                    key="topic_widget",
+                    label_visibility="collapsed",
+                )
+            else:
+                topic = st.text_input(
+                    "Market / topic to brief",
+                    placeholder="e.g. CRM software market, AI coding assistants, fintech payments…",
+                    key="topic_widget",
+                    label_visibility="collapsed",
+                )
+                # Mirror into topic_input so the rest of the code can read it
                 st.session_state["topic_input"] = topic
 
         with col_run:

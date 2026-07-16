@@ -9,7 +9,7 @@ ensuring every factual claim is traceable to a source URL.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Annotated, Any, Dict, List, Optional
 
@@ -49,7 +49,7 @@ class Source(BaseModel):
     url: str = Field(..., description="Canonical URL of the source")
     title: str = Field(default="", description="Page or article title")
     snippet: str = Field(default="", description="Relevant excerpt from the source")
-    retrieved_at: datetime = Field(default_factory=datetime.utcnow)
+    retrieved_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     failed: bool = Field(default=False, description="True if fetch/scrape failed")
     failure_reason: Optional[str] = Field(default=None)
 

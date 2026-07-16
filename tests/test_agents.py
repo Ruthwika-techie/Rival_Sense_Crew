@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 from unittest.mock import MagicMock, patch
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
 
@@ -50,7 +50,7 @@ def _base_state(**overrides) -> BriefingState:
         "validation_result": None,
         "analysis_result": None,
         "briefing_output": None,
-        "run_metadata": RunMetadata(topic="CRM software market", started_at=datetime.utcnow()).model_dump(mode="json"),
+        "run_metadata": RunMetadata(topic="CRM software market", started_at=datetime.now(timezone.utc)).model_dump(mode="json"),
         "errors": [],
     }
     state.update(overrides)

@@ -27,15 +27,19 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 
-# Default DB location: same directory as this file
-_DEFAULT_DB_PATH = Path(__file__).parent / "report_history.db"
+# Default DB location: user's home directory so Streamlit's file-watcher
+# never sees it and won't raise "dictionary changed size during iteration".
+_DEFAULT_DB_PATH = Path.home() / ".marketpulse" / "report_history.db"
 
 
 class ReportStore:
     """SQLite-backed store for generated competitive intelligence reports."""
 
     def __init__(self, db_path: Optional[Path] = None) -> None:
-        self._db_path = str(db_path or _DEFAULT_DB_PATH)
+        self._db_path = Path(db_path or _DEFAULT_DB_PATH)
+        # Create parent directory if it doesn't exist yet
+        self._db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._db_path = str(self._db_path)
         self._init_db()
 
     # ── Internal helpers ──────────────────────────────────────────────────────

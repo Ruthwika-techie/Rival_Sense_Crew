@@ -13,7 +13,7 @@ Responsibilities:
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from langchain_openai import ChatOpenAI
@@ -312,7 +312,7 @@ def writer_node(state: BriefingState) -> Dict[str, Any]:
     except Exception:
         run_meta = RunMetadata(topic=topic)
 
-    run_meta.completed_at = datetime.utcnow()
+    run_meta.completed_at = datetime.now(timezone.utc)
     if run_meta.started_at:
         run_meta.duration_seconds = (
             run_meta.completed_at - run_meta.started_at

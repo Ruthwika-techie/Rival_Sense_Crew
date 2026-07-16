@@ -15,7 +15,7 @@ that routes the pipeline: coordinator → researcher → analyst → writer.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 from config import get_settings
@@ -57,7 +57,7 @@ def coordinator_node(state: BriefingState) -> Dict[str, Any]:
     meta = RunMetadata(
         run_id=existing_meta.get("run_id", RunMetadata().run_id),
         topic=topic,
-        started_at=existing_meta.get("started_at") or datetime.utcnow(),
+        started_at=existing_meta.get("started_at") or datetime.now(timezone.utc),
         steps_taken=step_count,
         coordinator_status=AgentStatus.RUNNING,
         researcher_status=AgentStatus.PENDING,

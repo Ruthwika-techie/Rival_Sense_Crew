@@ -17,7 +17,7 @@ The graph is compiled once and can be invoked synchronously or streamed.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from langgraph.graph import END, START, StateGraph
@@ -187,7 +187,7 @@ def run_briefing(
             "briefing_output": None,
             "run_metadata": RunMetadata(
                 topic=topic.strip(),
-                started_at=datetime.utcnow(),
+                started_at=datetime.now(timezone.utc),
             ).model_dump(mode="json"),
             "errors": [],
         }
@@ -200,11 +200,11 @@ def run_briefing(
         try:
             started_at = initial_state["run_metadata"]["started_at"]
         except NameError:
-            started_at = datetime.utcnow()
+            started_at = datetime.now(timezone.utc)
         meta = RunMetadata(
             topic=topic,
             started_at=started_at,
-            completed_at=datetime.utcnow(),
+            completed_at=datetime.now(timezone.utc),
             errors=[str(exc)],
         )
         return BriefingOutput(
@@ -279,7 +279,7 @@ def stream_briefing(
         "briefing_output": None,
         "run_metadata": RunMetadata(
             topic=topic.strip(),
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
         ).model_dump(mode="json"),
         "errors": [],
     }

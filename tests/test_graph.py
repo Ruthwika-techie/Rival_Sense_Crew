@@ -8,7 +8,7 @@ Tests verify:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -88,8 +88,8 @@ class TestRunBriefing:
     def _make_briefing_dict(self, topic: str = "CRM") -> dict:
         meta = RunMetadata(
             topic=topic,
-            started_at=datetime.utcnow(),
-            completed_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(timezone.utc),
             duration_seconds=45.2,
             steps_taken=4,
             total_sources=12,
