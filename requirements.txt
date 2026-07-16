@@ -1,11 +1,11 @@
 # Core LLM / Agent framework
 langchain==0.3.30
-langchain-core==0.3.65
+langchain-core==0.3.85
 langchain-openai==0.3.19
 langgraph==0.4.8
 langgraph-checkpoint==2.1.2
 
-# langsmith>=0.4 drops zstandard/cffi which fail to build on Python 3.14
+# langsmith>=0.4 drops zstandard/cffi dependency
 langsmith==0.4.60
 
 # Search & Scraping
