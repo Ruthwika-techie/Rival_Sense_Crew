@@ -1,11 +1,12 @@
+# -*- coding: utf-8 -*-
 """
-app.py – MarketPulse Streamlit Frontend
+app.py - MarketPulse Streamlit Frontend
 
 Premium dark "fintech / Bloomberg / Linear" glassmorphism redesign.
 Layout & functionality are unchanged from the original:
   - Sidebar: crew run status + reliability + run stats
   - Main area: topic input, run button, then briefing sections as cards
-Only presentation (CSS/markup) has been restyled — no logic, routing,
+Only presentation (CSS/markup) has been restyled -- no logic, routing,
 state, or agent-workflow changes.
 """
 
@@ -17,24 +18,24 @@ from typing import Any, Dict, List, Optional
 
 import streamlit as st
 
-# ── History / Archive store ───────────────────────────────────────────────────
+# -- History / Archive store ---------------------------------------------------
 from history import store as _report_store
 
-# ── Page config (must be first Streamlit call) ────────────────────────────────
+# -- Page config (must be first Streamlit call) --------------------------------
 st.set_page_config(
-    page_title="MarketPulse — Competitive Intelligence",
+    page_title="MarketPulse -- Competitive Intelligence",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# ── Custom CSS ────────────────────────────────────────────────────────────────
+# -- Custom CSS ----------------------------------------------------------------
 st.markdown(
     """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
 
-/* ══════════════════════════ TOKENS ══════════════════════════ */
+/* ========================== TOKENS ========================== */
 :root {
     --bg-void:      #0a0812;
     --bg-charcoal:  #0d0b18;
@@ -65,7 +66,7 @@ st.markdown(
     --radius-sm:    10px;
 }
 
-/* ══════════════════════════ GLOBAL ══════════════════════════ */
+/* ========================== GLOBAL ========================== */
 html, body, [data-testid="stApp"] {
     background:
         radial-gradient(ellipse 1200px 600px at 15% -10%, rgba(139,92,246,0.16), transparent 60%),
@@ -101,7 +102,7 @@ h1, h2, h3, h4 { font-family: 'Manrope', 'Inter', sans-serif; letter-spacing: -0
     mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 30%, transparent 90%);
 }
 
-/* ══════════════════════════ SIDEBAR ══════════════════════════ */
+/* ========================== SIDEBAR ========================== */
 [data-testid="stSidebar"] {
     background: linear-gradient(180deg, #0a0714 0%, #0d0a1c 60%, #0a0714 100%) !important;
     border-right: 1px solid var(--border-soft);
@@ -193,7 +194,7 @@ h1, h2, h3, h4 { font-family: 'Manrope', 'Inter', sans-serif; letter-spacing: -0
     margin-top: 0.4rem;
 }
 
-/* sidebar buttons — brand gradient (primary: Run Brief, Clear Chat, etc.) */
+/* sidebar buttons -- brand gradient (primary: Run Brief, Clear Chat, etc.) */
 [data-testid="stSidebar"] [data-testid="baseButton-primary"],
 [data-testid="stSidebar"] div.stButton > button:not([data-testid="baseButton-secondary"]) {
     background: var(--grad-brand) !important;
@@ -208,7 +209,7 @@ h1, h2, h3, h4 { font-family: 'Manrope', 'Inter', sans-serif; letter-spacing: -0
     filter: brightness(1.08);
 }
 
-/* History "Open" buttons in sidebar — ghost style so they're visible on dark bg */
+/* History "Open" buttons in sidebar -- ghost style so they're visible on dark bg */
 /* Streamlit 1.46 renders secondary buttons with data-testid="baseButton-secondary" */
 [data-testid="stSidebar"] [data-testid="baseButton-secondary"] {
     background: rgba(139,92,246,0.15) !important;
@@ -227,7 +228,7 @@ h1, h2, h3, h4 { font-family: 'Manrope', 'Inter', sans-serif; letter-spacing: -0
     filter: none !important;
 }
 
-/* ══════════════════════════ MAIN HEADER ══════════════════════════ */
+/* ========================== MAIN HEADER ========================== */
 .mp-header {
     position: relative;
     overflow: hidden;
@@ -268,7 +269,7 @@ h1, h2, h3, h4 { font-family: 'Manrope', 'Inter', sans-serif; letter-spacing: -0
     padding: 6px 14px; border-radius: 999px; position: relative; z-index: 1; white-space: nowrap;
 }
 
-/* ══════════════════════════ PREVIEW STRIP ══════════════════════════ */
+/* ========================== PREVIEW STRIP ========================== */
 .preview-card {
     background: var(--glass);
     border: 1px solid var(--border-soft);
@@ -287,7 +288,7 @@ h1, h2, h3, h4 { font-family: 'Manrope', 'Inter', sans-serif; letter-spacing: -0
 .preview-card h4 { margin: 0 0 0.3rem 0; font-size: 0.98rem; font-weight: 700; color: var(--text-hi); }
 .preview-card p { margin: 0; font-size: 0.79rem; color: var(--text-low); line-height: 1.5; }
 
-/* ══════════════════════════ BRIEFING CARDS ══════════════════════════ */
+/* ========================== BRIEFING CARDS ========================== */
 .brief-card {
     background: var(--glass);
     backdrop-filter: blur(14px);
@@ -328,7 +329,7 @@ h1, h2, h3, h4 { font-family: 'Manrope', 'Inter', sans-serif; letter-spacing: -0
 }
 .cite-badge:hover { background: rgba(139,92,246,0.26); }
 
-/* ── Source pill ── */
+/* -- Source pill -- */
 .source-pill {
     display: inline-block;
     background: rgba(255,255,255,0.04);
@@ -345,7 +346,7 @@ h1, h2, h3, h4 { font-family: 'Manrope', 'Inter', sans-serif; letter-spacing: -0
     border-color: rgba(244,63,94,0.3);
 }
 
-/* ── Side info panels (verification / how it works) ── */
+/* -- Side info panels (verification / how it works) -- */
 .info-panel {
     background: var(--glass);
     border: 1px solid var(--border-soft);
@@ -384,7 +385,7 @@ h1, h2, h3, h4 { font-family: 'Manrope', 'Inter', sans-serif; letter-spacing: -0
 .flow-step .fs-name { font-size: 0.83rem; font-weight: 700; color: var(--text-hi); line-height: 1.25; }
 .flow-step .fs-sub { font-size: 0.72rem; color: var(--text-low); }
 
-/* ── Feature strip (bottom) ── */
+/* -- Feature strip (bottom) -- */
 .feature-card {
     background: var(--glass);
     border: 1px solid var(--border-soft);
@@ -401,7 +402,7 @@ h1, h2, h3, h4 { font-family: 'Manrope', 'Inter', sans-serif; letter-spacing: -0
 .feature-card h4 { margin: 0 0 0.3rem 0; font-size: 0.94rem; font-weight: 700; color: var(--text-hi); }
 .feature-card p { margin: 0; font-size: 0.79rem; color: var(--text-low); line-height: 1.5; }
 
-/* ══════════════════════════ INPUT ROW ══════════════════════════ */
+/* ========================== INPUT ROW ========================== */
 [data-testid="stTextInput"] input {
     background: var(--glass) !important;
     border: 1px solid var(--border-soft) !important;
@@ -431,7 +432,7 @@ div.stButton > button {
 div.stButton > button:hover { filter: brightness(1.1); transform: translateY(-1px); }
 div.stButton > button:disabled { opacity: 0.45; box-shadow: none; }
 
-/* ══════════════════════════ TABS ══════════════════════════ */
+/* ========================== TABS ========================== */
 [data-testid="stTabs"] button[role="tab"] {
     color: var(--text-low) !important;
     font-weight: 600 !important;
@@ -446,7 +447,7 @@ div.stButton > button:disabled { opacity: 0.45; box-shadow: none; }
 [data-testid="stTabs"] [data-baseweb="tab-border"] { background: var(--border-soft) !important; }
 [data-testid="stTabs"] [data-baseweb="tab-highlight"] { background: var(--violet) !important; }
 
-/* ══════════════════════════ EXPANDERS ══════════════════════════ */
+/* ========================== EXPANDERS ========================== */
 [data-testid="stExpander"] {
     background: var(--glass);
     border: 1px solid var(--border-soft) !important;
@@ -454,7 +455,7 @@ div.stButton > button:disabled { opacity: 0.45; box-shadow: none; }
 }
 [data-testid="stExpander"] summary { color: var(--text-hi) !important; font-weight: 600 !important; }
 
-/* ══════════════════════════ MISC TEXT ══════════════════════════ */
+/* ========================== MISC TEXT ========================== */
 [data-testid="stMarkdownContainer"] p,
 [data-testid="stMarkdownContainer"] li { color: var(--text-mid); }
 [data-testid="stMarkdownContainer"] h1,
@@ -491,7 +492,7 @@ hr, [data-testid="stDivider"] { border-color: var(--border-soft) !important; }
 
 
 
-# ── Chart / table helpers ─────────────────────────────────────────────────────
+# -- Chart / table helpers -----------------------------------------------------
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
@@ -605,7 +606,7 @@ def _scatter_timeline(items: list, title: str) -> go.Figure:
     return fig
 
 
-# ── Session state initialisation ──────────────────────────────────────────────
+# -- Session state initialisation ----------------------------------------------
 
 def init_session():
     defaults = {
@@ -617,7 +618,7 @@ def init_session():
         # Kept separately from last_topic so we can restore it after a
         # rerun without relying on the disabled-widget value quirk.
         "topic_input": "",
-        # ── History / Archive ─────────────────────────────────────────────────
+        # -- History / Archive -------------------------------------------------
         # ID of the report currently open in the read-only viewer (None = closed)
         "history_view_id": None,
         # Current search query text in the History tab
@@ -632,7 +633,7 @@ def init_session():
             st.session_state[k] = v
 
 
-# ── Status helpers ────────────────────────────────────────────────────────────
+# -- Status helpers ------------------------------------------------------------
 
 _STATUS_ICONS = {
     "done":    ("done",    "Done"),
@@ -657,7 +658,7 @@ def _status_html(status: str) -> str:
     return f'<span class="agent-status status-{cls}"><span class="dot"></span>{label}</span>'
 
 
-# ── Sidebar rendering ─────────────────────────────────────────────────────────
+# -- Sidebar rendering ---------------------------------------------------------
 
 def render_sidebar(meta: Optional[Dict[str, Any]], running: bool):
     with st.sidebar:
@@ -673,11 +674,11 @@ def render_sidebar(meta: Optional[Dict[str, Any]], running: bool):
         st.markdown(
             '<div style="font-size:0.74rem;color:var(--text-low);margin-bottom:0.4rem;line-height:1.5;">'
             'Coordinator → Researcher → Validator → Analyst → Writer<br>'
-            '<span style="opacity:0.75">multi-agent crew · powered by LangGraph</span></div>',
+            '<span style="opacity:0.75">multi-agent crew . powered by LangGraph</span></div>',
             unsafe_allow_html=True,
         )
 
-        # ── CREW RUN section ──────────────────────────────────────────────────
+        # -- CREW RUN section --------------------------------------------------
         st.markdown('<div class="sidebar-label">Crew Run</div>', unsafe_allow_html=True)
 
         agent_defs = [
@@ -691,7 +692,7 @@ def render_sidebar(meta: Optional[Dict[str, Any]], running: bool):
         def _row(idx: int, label: str, subtitle: str, status: str, extra: str = ""):
             icon, grad = _AGENT_ICON_STYLE[idx % len(_AGENT_ICON_STYLE)]
             badge = _status_html(status)
-            sub = f"{subtitle} · {extra}" if extra else subtitle
+            sub = f"{subtitle} . {extra}" if extra else subtitle
             st.markdown(
                 f'<div class="agent-row">'
                 f'<div class="agent-icon" style="background:{grad}">{icon}</div>'
@@ -723,7 +724,7 @@ def render_sidebar(meta: Optional[Dict[str, Any]], running: bool):
             for i, (label, sub) in enumerate(agent_defs):
                 _row(i, label, sub, "pending")
 
-        # ── RELIABILITY section ───────────────────────────────────────────────
+        # -- RELIABILITY section -----------------------------------------------
         st.markdown('<div class="sidebar-label">Reliability</div>', unsafe_allow_html=True)
 
         if meta:
@@ -748,25 +749,25 @@ def render_sidebar(meta: Optional[Dict[str, Any]], running: bool):
         else:
             st.markdown(
                 '<div class="kv-row"><span class="k">All claims cited</span>'
-                '<span class="agent-status status-pending"><span class="dot"></span>–</span></div>',
+                '<span class="agent-status status-pending"><span class="dot"></span>-</span></div>',
                 unsafe_allow_html=True,
             )
 
-        # ── RUN section ───────────────────────────────────────────────────────
+        # -- RUN section -------------------------------------------------------
         st.markdown('<div class="sidebar-label">Run</div>', unsafe_allow_html=True)
 
         if meta:
             dur = meta.get("duration_seconds")
-            dur_txt = f"{dur:.0f}s" if dur else "–"
+            dur_txt = f"{dur:.0f}s" if dur else "-"
             tokens = meta.get("total_tokens", 0)
-            tok_txt = f"{tokens:,}" if tokens else "–"
-            run_id = meta.get("run_id", "–")
+            tok_txt = f"{tokens:,}" if tokens else "-"
+            run_id = meta.get("run_id", "-")
 
             for label, value in [
                 ("Run ID", run_id),
                 ("Duration", dur_txt),
                 ("Tokens", tok_txt),
-                ("Steps", str(meta.get("steps_taken", "–"))),
+                ("Steps", str(meta.get("steps_taken", "-"))),
             ]:
                 st.markdown(
                     f'<div class="kv-row"><span class="k">{label}</span>'
@@ -775,21 +776,21 @@ def render_sidebar(meta: Optional[Dict[str, Any]], running: bool):
                 )
         else:
             st.markdown(
-                '<div class="kv-row"><span class="k">Duration</span><span class="v">–</span></div>',
+                '<div class="kv-row"><span class="k">Duration</span><span class="v">-</span></div>',
                 unsafe_allow_html=True,
             )
 
-        # ── Errors ───────────────────────────────────────────────────────────
+        # -- Errors -----------------------------------------------------------
         if meta and meta.get("errors"):
             st.markdown('<div class="sidebar-label">Errors</div>', unsafe_allow_html=True)
             for err in meta["errors"][:5]:
                 st.markdown(f'<div class="err-box">⚠ {err}</div>', unsafe_allow_html=True)
 
-        # ── HISTORY section ───────────────────────────────────────────────────
+        # -- HISTORY section ---------------------------------------------------
         _render_history_sidebar_section()
 
 
-# ── History sidebar section ───────────────────────────────────────────────────
+# -- History sidebar section ---------------------------------------------------
 
 def _render_history_sidebar_section() -> None:
     """
@@ -832,7 +833,7 @@ def _render_history_sidebar_section() -> None:
             dt = datetime.fromisoformat(created_raw.replace("Z", "+00:00"))
             ts = dt.strftime("%b %d, %H:%M")
         except Exception:
-            ts = created_raw[:16] if created_raw else "–"
+            ts = created_raw[:16] if created_raw else "-"
 
         is_active = (st.session_state.get("history_view_id") == rid)
         active_style = (
@@ -841,11 +842,11 @@ def _render_history_sidebar_section() -> None:
         )
 
         # Competitor sub-label (truncate to keep sidebar compact)
-        sub_label = (competitors[:38] + "…") if len(competitors) > 38 else competitors
+        sub_label = (competitors[:38] + "...") if len(competitors) > 38 else competitors
         sub_html = (
             f'<div style="font-size:0.66rem;color:var(--text-low);'
             f'white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
-            f'{sub_label or "—"}</div>'
+            f'{sub_label or "--"}</div>'
         ) if sub_label else ""
 
         st.markdown(
@@ -855,7 +856,7 @@ def _render_history_sidebar_section() -> None:
             f'<div class="agent-meta" style="min-width:0">'
             f'<div class="a-name" style="white-space:nowrap;overflow:hidden;'
             f'text-overflow:ellipsis;max-width:140px" title="{title}">'
-            f'{title[:36]}{"…" if len(title) > 36 else ""}</div>'
+            f'{title[:36]}{"..." if len(title) > 36 else ""}</div>'
             f'{sub_html}'
             f'</div>'
             f'<div style="font-size:0.64rem;color:var(--text-low);'
@@ -878,12 +879,12 @@ def _render_history_sidebar_section() -> None:
         st.markdown(
             f'<div style="font-size:0.72rem;color:var(--text-low);'
             f'text-align:center;padding:0.3rem 0">'
-            f'+ {count - 10} more — see History tab</div>',
+            f'+ {count - 10} more -- see History tab</div>',
             unsafe_allow_html=True,
         )
 
 
-# ── Briefing card helpers ─────────────────────────────────────────────────────
+# -- Briefing card helpers -----------------------------------------------------
 
 def _citation_badges(citations: List[Dict]) -> str:
     """Render inline source badge links from a list of Citation dicts."""
@@ -922,7 +923,7 @@ def render_pricing_moves(moves: List[Dict]):
               '<p>No pricing data available this week.</p>')
         return
 
-    # ── Comparison table via st.dataframe (always visible) ───────────────────
+    # -- Comparison table via st.dataframe (always visible) -------------------
     st.markdown("#### 💰 Competitor Pricing Moves")
     rows = []
     for pm in moves:
@@ -937,7 +938,7 @@ def render_pricing_moves(moves: List[Dict]):
     df = pd.DataFrame(rows)
     st.dataframe(df, use_container_width=True, hide_index=True)
 
-    # ── Chart + detail side by side ───────────────────────────────────────────
+    # -- Chart + detail side by side -------------------------------------------
     if len(moves) >= 2:
         col_chart, col_detail = st.columns([1, 1], gap="large")
         with col_chart:
@@ -977,12 +978,12 @@ def render_pricing_moves(moves: List[Dict]):
                     f'<div style="margin-top:0.5rem">{badges}</div>',
                 )
     else:
-        # single item — just show the card
+        # single item -- just show the card
         for pm in moves:
             badges = _citation_badges(pm.get("citations", []))
             _card(
                 "💰", "var(--grad-blue)",
-                f'{pm.get("competitor", "Unknown")} — Pricing Move',
+                f'{pm.get("competitor", "Unknown")} -- Pricing Move',
                 f'<p>{pm.get("description", "")}</p>'
                 f'<div style="margin-top:0.6rem">{badges}</div>',
             )
@@ -994,7 +995,7 @@ def render_product_launches(launches: List[Dict]):
               '<p>No product launches recorded this week.</p>')
         return
 
-    # ── Summary dataframe ─────────────────────────────────────────────────────
+    # -- Summary dataframe -----------------------------------------------------
     st.markdown("#### 🚀 Product Launches")
     rows = []
     for pl in launches:
@@ -1003,14 +1004,14 @@ def render_product_launches(launches: List[Dict]):
             sources += c.get("sources", [])
         rows.append({
             "Competitor": pl.get("competitor", "Unknown"),
-            "Product": pl.get("product_name", "—"),
+            "Product": pl.get("product_name", "--"),
             "Description": pl.get("description", ""),
             "Sources": len(sources),
         })
     df = pd.DataFrame(rows)
     st.dataframe(df, use_container_width=True, hide_index=True)
 
-    # ── Chart + detail side by side ───────────────────────────────────────────
+    # -- Chart + detail side by side -------------------------------------------
     col_chart, col_detail = st.columns([1, 1], gap="large")
 
     with col_chart:
@@ -1042,12 +1043,12 @@ def render_product_launches(launches: List[Dict]):
         fig.update_layout(margin=dict(l=0, r=10, t=48, b=0))
         st.plotly_chart(fig, use_container_width=True, config=_PLOTLY_CONFIG)
 
-        # ── Launch Sequence: fixed-column dot plot ────────────────────────────
+        # -- Launch Sequence: fixed-column dot plot ----------------------------
         # All dots share x=0 so they form a clean vertical list aligned with
         # the y-axis labels. Text is rendered to the right of each dot.
         if len(launches) >= 2:
             y_labels = [
-                f'{pl.get("competitor", "?")} · {pl.get("product_name", "?")}'
+                f'{pl.get("competitor", "?")} . {pl.get("product_name", "?")}'
                 for pl in launches
             ]
             fig2 = go.Figure(go.Scatter(
@@ -1091,7 +1092,7 @@ def render_product_launches(launches: List[Dict]):
             badges = _citation_badges(pl.get("citations", []))
             _card(
                 "🚀", "var(--grad-green)",
-                f'{pl.get("competitor", "Unknown")} — {pl.get("product_name", "")}',
+                f'{pl.get("competitor", "Unknown")} -- {pl.get("product_name", "")}',
                 f'<p style="font-size:0.85rem">{pl.get("description", "")}</p>'
                 f'<div style="margin-top:0.5rem">{badges}</div>',
             )
@@ -1103,18 +1104,18 @@ def render_market_signals(signals: List[Dict]):
               '<p>No market signals detected this week.</p>')
         return
 
-    # ── Summary table ─────────────────────────────────────────────────────────
+    # -- Summary table ---------------------------------------------------------
     rows_html = ""
     for ms in signals:
         badges = _citation_badges(ms.get("citations", []))
-        signal = ms.get("signal", "—")
+        signal = ms.get("signal", "--")
         detail = ms.get("detail", "")
         # Truncate detail for table readability
-        short = detail[:120] + ("…" if len(detail) > 120 else "")
+        short = detail[:120] + ("..." if len(detail) > 120 else "")
         rows_html += (
             f"<tr><td><strong>{signal}</strong></td>"
             f"<td>{short}</td>"
-            f"<td>{badges if badges else '—'}</td></tr>"
+            f"<td>{badges if badges else '--'}</td></tr>"
         )
 
     table_html = (
@@ -1126,16 +1127,16 @@ def render_market_signals(signals: List[Dict]):
         "</tr></thead>"
         f"<tbody>{rows_html}</tbody></table>"
     )
-    _card("📡", "var(--grad-amber)", "Market Signals — Summary Table", table_html)
+    _card("📡", "var(--grad-amber)", "Market Signals -- Summary Table", table_html)
 
-    # ── Horizontal bar: signal prominence (word count of detail) ──────────────
+    # -- Horizontal bar: signal prominence (word count of detail) --------------
     if len(signals) >= 2:
         labels = [ms.get("signal", f"Signal {i+1}")[:40] for i, ms in enumerate(signals)]
         values = [len(ms.get("detail", "").split()) for ms in signals]
         fig = _bar_chart(labels, values, "Signal Coverage Depth", "#fbbf24")
         st.plotly_chart(fig, use_container_width=True, config=_PLOTLY_CONFIG)
 
-    # ── Detail cards ──────────────────────────────────────────────────────────
+    # -- Detail cards ----------------------------------------------------------
     st.markdown(
         '<div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;'
         'color:var(--text-low);text-transform:uppercase;margin:1rem 0 0.5rem">Detail</div>',
@@ -1166,7 +1167,7 @@ def render_insights(insights: List[Dict]):
         "opportunity": "#8b5cf6", "threat": "#f97316", "observation": "#22d3ee",
     }
 
-    # ── Donut chart: breakdown by type ────────────────────────────────────────
+    # -- Donut chart: breakdown by type ----------------------------------------
     from collections import Counter
     type_counts = Counter(ins.get("type", "observation") for ins in insights)
     if len(type_counts) >= 2:
@@ -1211,7 +1212,7 @@ def render_insights(insights: List[Dict]):
                 unsafe_allow_html=True,
             )
 
-    # ── Cards grouped by type ─────────────────────────────────────────────────
+    # -- Cards grouped by type -------------------------------------------------
     st.markdown(
         '<div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;'
         'color:var(--text-low);text-transform:uppercase;margin:1rem 0 0.5rem">All Insights</div>',
@@ -1263,7 +1264,7 @@ def render_sources(sources: List[Dict], failed: List[Dict]):
                 )
 
 
-# ── Main page header ──────────────────────────────────────────────────────────
+# -- Main page header ----------------------------------------------------------
 
 def render_page_header(briefing: Optional[Dict]):
     meta = briefing.get("run_metadata", {}) if briefing else {}
@@ -1274,15 +1275,15 @@ def render_page_header(briefing: Optional[Dict]):
     if total_sources:
         badge_text = f"{total_sources} sources"
         if skipped:
-            badge_text += f" · {skipped} skipped"
+            badge_text += f" . {skipped} skipped"
 
-    sub = 'Coordinator <span class="arrow">→</span> Researcher <span class="arrow">→</span> Validator <span class="arrow">→</span> Analyst <span class="arrow">→</span> Writer · multi-agent crew'
+    sub = 'Coordinator <span class="arrow">→</span> Researcher <span class="arrow">→</span> Validator <span class="arrow">→</span> Analyst <span class="arrow">→</span> Writer . multi-agent crew'
 
     badge_html = f'<div class="badge">{badge_text}</div>' if badge_text else ""
 
     st.markdown(
         f'<div class="mp-header">'
-        f'<div><h1>MarketPulse — Weekly Competitive Brief</h1>'
+        f'<div><h1>MarketPulse -- Weekly Competitive Brief</h1>'
         f'<div class="sub">{sub}</div></div>'
         f'{badge_html}'
         f'</div>',
@@ -1290,7 +1291,7 @@ def render_page_header(briefing: Optional[Dict]):
     )
 
 
-# ── Decorative preview strip (purely visual, matches top overview cards) ──────
+# -- Decorative preview strip (purely visual, matches top overview cards) ------
 
 def render_preview_strip():
     cols = st.columns(4)
@@ -1310,7 +1311,7 @@ def render_preview_strip():
             )
 
 
-# ── Decorative right-hand info panel (purely visual) ──────────────────────────
+# -- Decorative right-hand info panel (purely visual) --------------------------
 
 def render_info_panel(meta: Optional[Dict[str, Any]]):
     all_cited = meta.get("all_claims_cited", True) if meta else True
@@ -1345,7 +1346,7 @@ def render_info_panel(meta: Optional[Dict[str, Any]]):
     )
 
 
-# ── Decorative bottom feature strip (purely visual) ───────────────────────────
+# -- Decorative bottom feature strip (purely visual) ---------------------------
 
 def render_feature_strip():
     cols = st.columns(3)
@@ -1364,7 +1365,7 @@ def render_feature_strip():
             )
 
 
-# ── Settings expander ─────────────────────────────────────────────────────────
+# -- Settings expander ---------------------------------------------------------
 
 def render_settings_expander() -> tuple:
     """Returns (max_sources, max_steps) from the advanced settings panel."""
@@ -1383,7 +1384,7 @@ def render_settings_expander() -> tuple:
     return max_sources, max_steps
 
 
-# ── Overview metrics dashboard row ───────────────────────────────────────────
+# -- Overview metrics dashboard row -------------------------------------------
 
 def render_overview_metrics(briefing: Dict):
     """
@@ -1398,7 +1399,7 @@ def render_overview_metrics(briefing: Dict):
     failed    = briefing.get("failed_sources", [])
     meta      = briefing.get("run_metadata", {})
 
-    # ── Metric tiles ──────────────────────────────────────────────────────────
+    # -- Metric tiles ----------------------------------------------------------
     tiles = [
         (len(pricing),  "Pricing Moves",    "#22d3ee"),
         (len(launches), "Product Launches",  "#34d399"),
@@ -1427,7 +1428,7 @@ def render_overview_metrics(briefing: Dict):
                 unsafe_allow_html=True,
             )
 
-    # ── Intelligence Coverage Overview — horizontal bar chart ─────────────────
+    # -- Intelligence Coverage Overview -- horizontal bar chart -----------------
     section_names  = ["Pricing Moves", "Launches", "Signals", "Insights"]
     section_counts = [len(pricing), len(launches), len(signals), len(insights)]
     section_colours = ["#22d3ee", "#34d399", "#fbbf24", "#8b5cf6"]
@@ -1489,24 +1490,19 @@ def render_overview_metrics(briefing: Dict):
     st.plotly_chart(fig, use_container_width=True, config=_PLOTLY_CONFIG)
 
 
-# ── PDF export ────────────────────────────────────────────────────────────────
+# -- PDF export ----------------------------------------------------------------
 
 def generate_pdf(briefing: Dict) -> bytes:
-    """
-    Build a professional A4 executive report PDF from a BriefingOutput dict.
-    Layout: branded cover page -> KPI dashboard -> sections with tables/cards
-    -> recommendation callout -> numbered references.
-    Uses fpdf2 (pure-Python, no system dependencies).
-    """
+    """Build a clean A4 PDF report from a BriefingOutput dict."""
     from fpdf import FPDF
     from datetime import datetime as _dt, timezone as _tz
 
-    meta    = briefing.get("run_metadata", {})
-    topic   = meta.get("topic", "Competitive Intelligence Briefing")
-    run_id  = meta.get("run_id", "")
-    dur     = meta.get("duration_seconds")
-    sources = briefing.get("all_sources", [])
-    failed  = briefing.get("failed_sources", [])
+    meta      = briefing.get("run_metadata", {})
+    topic     = meta.get("topic", "Competitive Intelligence Briefing")
+    run_id    = meta.get("run_id", "")
+    dur       = meta.get("duration_seconds")
+    sources   = briefing.get("all_sources", [])
+    failed    = briefing.get("failed_sources", [])
     pricing   = briefing.get("competitor_pricing", [])
     launches  = briefing.get("product_launches", [])
     signals   = briefing.get("market_signals", [])
@@ -1514,16 +1510,15 @@ def generate_pdf(briefing: Dict) -> bytes:
     summary   = briefing.get("executive_summary", "")
     rec       = briefing.get("recommendation", "")
 
-    # ── latin-1 sanitiser ────────────────────────────────────────────────────
+    # -- Latin-1 sanitiser ---------------------------------------------------
     def _s(v) -> str:
         return (str(v) if v is not None else "").encode("latin-1", errors="ignore").decode("latin-1")
 
-    # ── Build a global citation index: url -> [N]  ───────────────────────────
+    # -- Citation index ------------------------------------------------------
     _url_index: dict = {}
-    _ref_list: list = []          # (N, title, url)
+    _ref_list:  list = []
 
     def _register_url(url: str, title: str = "") -> int:
-        """Register url and return its 1-based citation number."""
         if not url:
             return 0
         if url not in _url_index:
@@ -1533,7 +1528,6 @@ def generate_pdf(briefing: Dict) -> bytes:
         return _url_index[url]
 
     def _cite_nums(citations: list) -> str:
-        """Return compact inline citation string like '[1][3]' from citations list."""
         nums = []
         for c in citations:
             for url in c.get("sources", []):
@@ -1542,623 +1536,394 @@ def generate_pdf(briefing: Dict) -> bytes:
                     nums.append(n)
         if not nums:
             return ""
-        return "  " + "".join(f"[{n}]" for n in sorted(nums))
+        return " " + "".join(f"[{n}]" for n in sorted(nums))
 
-    # Pre-register all sources in order so numbering is deterministic
     for src in sources:
         if not src.get("failed"):
             _register_url(src.get("url", ""), src.get("title", ""))
+    for pm  in pricing:  _cite_nums(pm.get("citations", []))
+    for pl  in launches: _cite_nums(pl.get("citations", []))
+    for ms  in signals:  _cite_nums(ms.get("citations", []))
+    for ins in insights: _cite_nums(ins.get("citations", []))
 
-    # Pre-pass: register citations from all sections so numbers are stable
-    for pm in pricing:
-        _cite_nums(pm.get("citations", []))
-    for pl in launches:
-        _cite_nums(pl.get("citations", []))
-    for ms in signals:
-        _cite_nums(ms.get("citations", []))
-    for ins in insights:
-        _cite_nums(ins.get("citations", []))
+    # -- Colours (minimal: black, greys, white only) -------------------------
+    BLACK  = (30,  30,  30)
+    DGREY  = (80,  80,  80)
+    MGREY  = (130, 130, 130)
+    LGREY  = (210, 210, 210)
+    XLIGHT = (245, 245, 245)
+    WHITE  = (255, 255, 255)
 
-    # ── Colour palette ───────────────────────────────────────────────────────
-    BLACK   = (20,  20,  30)
-    DARK    = (45,  40,  60)
-    MID     = (95,  90, 115)
-    LIGHT   = (150, 145, 165)
-    WHITE   = (255, 255, 255)
-    NAVY    = (18,  42,  88)       # primary brand colour
-    INDIGO  = (63,  81, 181)       # section headers
-    TEAL    = (0,  128, 128)       # launches
-    AMBER   = (158, 104,   0)      # signals
-    ROSE    = (160,  30,  50)      # risk / failed
-    GREEN   = (20,  120,  60)      # recommendation / opportunity
-    BLUE    = (25,  90,  185)      # pricing
-    RULE    = (215, 210, 225)      # horizontal rules
-    SHADE_L = (247, 246, 252)      # light section background
-    SHADE_G = (235, 248, 240)      # green tint for recommendation
-    SHADE_B = (235, 242, 255)      # blue tint for KPI
-    COVER_BG= (18,  42,  88)       # cover background = NAVY
-    COVER_AC= (99, 102, 241)       # cover accent stripe
-
-    # ── PDF class with header / footer ───────────────────────────────────────
+    # -- PDF class -----------------------------------------------------------
     class PDF(FPDF):
         def header(self):
-            if self.page_no() <= 2:          # cover + TOC/KPI page: no header
+            if self.page_no() == 1:
                 return
-            # Slim navy bar
-            self.set_fill_color(*NAVY)
-            self.rect(0, 0, self.w, 10, style="F")
-            self.set_y(1.5)
-            self.set_font("Helvetica", "B", 7.5)
-            self.set_text_color(*WHITE)
-            self.set_x(self.l_margin)
-            self.cell(self.w * 0.55, 7, _s("MarketPulse  |  Competitive Intelligence"))
+            # Header sits in the top margin (top=14mm), so starts at y=8
+            self.set_y(8)
             self.set_font("Helvetica", "", 7.5)
-            self.set_text_color(190, 200, 230)
-            self.cell(0, 7, _s(topic[:60]), align="R",
+            self.set_text_color(*MGREY)
+            self.cell(0, 4, _s("MarketPulse  |  Competitive Intelligence Briefing"),
                       new_x="LMARGIN", new_y="NEXT")
-            self.ln(3)
+            self.set_draw_color(*LGREY)
+            self.set_line_width(0.2)
+            self.line(self.l_margin, self.get_y(),
+                      self.w - self.r_margin, self.get_y())
+            # No extra ln -- the top margin handles the gap to content
 
         def footer(self):
-            if self.page_no() == 1:          # no footer on cover
+            if self.page_no() == 1:
                 return
-            self.set_y(-13)
-            self.set_draw_color(*RULE)
+            self.set_y(-10)
+            self.set_draw_color(*LGREY)
+            self.set_line_width(0.2)
             self.line(self.l_margin, self.get_y(),
                       self.w - self.r_margin, self.get_y())
             self.ln(1)
             self.set_font("Helvetica", "", 7)
-            self.set_text_color(*LIGHT)
+            self.set_text_color(*MGREY)
             date_str = _dt.now(_tz.utc).strftime("%B %Y")
-            self.cell(self.w * 0.45, 5,
-                      _s(f"Confidential  |  {date_str}  |  Run {run_id}"))
-            self.cell(0, 5, _s(f"Page {self.page_no() - 1}"), align="R")
+            pg = self.page_no() - 1
+            self.cell(0, 4, _s(f"{date_str}  |  Run {run_id}  |  Page {pg}"),
+                      align="C")
 
     pdf = PDF()
-    pdf.set_margins(left=18, top=18, right=18)
-    pdf.set_auto_page_break(auto=True, margin=20)
+    pdf.set_margins(left=18, top=14, right=18)
+    pdf.set_auto_page_break(auto=True, margin=14)
 
     L = 18
-    W = 210 - 36          # A4 width minus both margins = 174 mm
+    W = 210 - 36   # usable width
 
-    # ── Shared layout helpers ────────────────────────────────────────────────
-    def sp(h: float = 4):
+    # -- Layout helpers -------------------------------------------------------
+    def sp(h: float = 3):
         pdf.ln(h)
 
-    def hrule(colour=RULE, thickness: float = 0.3):
-        pdf.set_draw_color(*colour)
-        pdf.set_line_width(thickness)
+    def hrule():
+        pdf.set_draw_color(*LGREY)
+        pdf.set_line_width(0.3)
         pdf.line(L, pdf.get_y(), L + W, pdf.get_y())
         pdf.set_line_width(0.2)
-        sp(3)
-
-    def section_heading(title: str, colour=INDIGO, icon: str = ""):
-        sp(6)
-        # Accent bar left of heading
-        bar_h = 8
-        pdf.set_fill_color(*colour)
-        pdf.rect(L, pdf.get_y(), 4, bar_h, style="F")
-        pdf.set_x(L + 7)
-        pdf.set_font("Helvetica", "B", 11)
-        pdf.set_text_color(*colour)
-        label = f"{icon}  {title}" if icon else title
-        pdf.cell(W - 7, bar_h, _s(label), new_x="LMARGIN", new_y="NEXT")
         sp(2)
-        hrule(colour, 0.4)
 
-    def label_pill(text: str, colour):
-        """Inline coloured badge rendered as filled rectangle + white text."""
-        pdf.set_font("Helvetica", "B", 7)
-        tw = pdf.get_string_width(_s(text)) + 4
-        x, y = pdf.get_x(), pdf.get_y()
-        pdf.set_fill_color(*colour)
-        pdf.rect(x, y + 0.5, tw, 4.5, style="F")
-        pdf.set_text_color(*WHITE)
-        pdf.cell(tw, 5.5, _s(text), align="C")
+    def section_heading(title: str):
+        sp(4)
+        pdf.set_font("Helvetica", "B", 11)
         pdf.set_text_color(*BLACK)
+        pdf.set_x(L)
+        pdf.cell(0, 6, _s(title), new_x="LMARGIN", new_y="NEXT")
+        hrule()
 
-    # ════════════════════════════ PAGE 1 — COVER ═════════════════════════════
+    def body_text(text: str, indent: float = 0):
+        pdf.set_x(L + indent)
+        pdf.set_font("Helvetica", "", 9.5)
+        pdf.set_text_color(*BLACK)
+        pdf.multi_cell(W - indent, 5, _s(text))
+
+    # ============================ TITLE PAGE =================================
     pdf.add_page()
 
-    # Full-page navy background
-    pdf.set_fill_color(*COVER_BG)
-    pdf.rect(0, 0, 210, 297, style="F")
+    dur_txt  = f"{int(dur)}s" if dur else "n/a"
+    tok_txt  = f"{meta.get('total_tokens', 0):,}" if meta.get("total_tokens") else "n/a"
+    date_cov = _dt.now(_tz.utc).strftime("%d %B %Y")
 
-    # Decorative accent stripe (bottom-left triangle simulation via thick rect)
-    pdf.set_fill_color(*COVER_AC)
-    pdf.rect(0, 240, 60, 57, style="F")
-    pdf.rect(0, 240, 120, 12, style="F")
+    pdf.set_xy(L, 55)
+    pdf.set_font("Helvetica", "B", 20)
+    pdf.set_text_color(*BLACK)
+    pdf.multi_cell(W, 10, _s("Competitive Intelligence Briefing"), align="L")
+    sp(2)
 
-    # Logo / brand wordmark
-    pdf.set_xy(L, 38)
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.set_text_color(160, 170, 230)
-    pdf.cell(W, 8, _s("MARKETPULSE"), new_x="LMARGIN", new_y="NEXT")
-
-    # Thin horizontal accent rule under brand
-    pdf.set_draw_color(*COVER_AC)
-    pdf.set_line_width(0.8)
-    pdf.line(L, pdf.get_y(), L + 30, pdf.get_y())
-    pdf.set_line_width(0.2)
-    pdf.ln(10)
-
-    # Main title
     pdf.set_x(L)
-    pdf.set_font("Helvetica", "B", 26)
-    pdf.set_text_color(*WHITE)
-    pdf.multi_cell(W, 13, _s("Competitive\nIntelligence\nBriefing"), align="L")
-    pdf.ln(6)
+    pdf.set_font("Helvetica", "", 12)
+    pdf.set_text_color(*DGREY)
+    pdf.multi_cell(W, 7, _s(topic), align="L")
+    sp(6)
 
-    # Topic subtitle
-    pdf.set_x(L)
-    pdf.set_font("Helvetica", "", 13)
-    pdf.set_text_color(190, 200, 235)
-    pdf.multi_cell(W, 8, _s(topic[:100]), align="L")
-    pdf.ln(14)
-
-    # Divider
-    pdf.set_draw_color(90, 100, 160)
+    pdf.set_draw_color(*BLACK)
     pdf.set_line_width(0.5)
     pdf.line(L, pdf.get_y(), L + W, pdf.get_y())
     pdf.set_line_width(0.2)
-    pdf.ln(8)
+    sp(5)
 
-    # Metadata grid on cover (2-col key/value)
-    dur_txt = f"{int(dur)}s" if dur else "n/a"
-    tok_txt = f"{meta.get('total_tokens', 0):,}" if meta.get("total_tokens") else "n/a"
-    date_cover = _dt.now(_tz.utc).strftime("%d %B %Y")
-    cover_meta = [
-        ("Date",        date_cover),
-        ("Run ID",      run_id or "n/a"),
-        ("Duration",    dur_txt),
-        ("Sources",     f"{meta.get('total_sources', 0)} collected"),
-        ("Citations",   "All cited" if meta.get("all_claims_cited", True) else "Partial"),
-        ("Tokens",      tok_txt),
+    meta_rows = [
+        ("Date",     date_cov),
+        ("Run ID",   run_id or "n/a"),
+        ("Duration", dur_txt),
+        ("Sources",  f"{meta.get('total_sources', 0)} collected"),
+        ("Tokens",   tok_txt),
     ]
-    col_w = W / 2
-    for i, (k, v) in enumerate(cover_meta):
-        if i % 2 == 0:
-            pdf.set_x(L)
-        pdf.set_font("Helvetica", "B", 8)
-        pdf.set_text_color(140, 155, 210)
-        pdf.cell(22, 6, _s(k.upper()))
-        pdf.set_font("Helvetica", "", 9)
-        pdf.set_text_color(*WHITE)
-        if i % 2 == 0:
-            pdf.cell(col_w - 22, 6, _s(v), new_x="CONTIGUOUS")
-        else:
-            pdf.cell(col_w - 22, 6, _s(v), new_x="LMARGIN", new_y="NEXT")
+    for k, v in meta_rows:
+        pdf.set_x(L)
+        pdf.set_font("Helvetica", "B", 8.5)
+        pdf.set_text_color(*DGREY)
+        pdf.cell(28, 5.5, _s(k))
+        pdf.set_font("Helvetica", "", 8.5)
+        pdf.set_text_color(*BLACK)
+        pdf.cell(0, 5.5, _s(v), new_x="LMARGIN", new_y="NEXT")
 
-    # "CONFIDENTIAL" watermark strip at bottom
-    pdf.set_xy(L, 270)
-    pdf.set_font("Helvetica", "", 7.5)
-    pdf.set_text_color(80, 95, 150)
-    pdf.cell(W, 5,
-             _s("CONFIDENTIAL — For internal use only. Generated by MarketPulse AI Crew."),
-             align="C")
+    sp(4)
+    pdf.set_draw_color(*LGREY)
+    pdf.set_line_width(0.2)
+    pdf.line(L, pdf.get_y(), L + W, pdf.get_y())
 
-
-    # ════════════════════════ PAGE 2 — KPI DASHBOARD + EXEC SUMMARY ══════════
-    pdf.add_page()
-
-    # ── KPI cards row ────────────────────────────────────────────────────────
-    # Five equal-width cards in a single row across the full usable width
-    kpi_items = [
-        ("Pricing Moves",   len(pricing),   BLUE),
-        ("Product Launches",len(launches),  TEAL),
-        ("Market Signals",  len(signals),   AMBER),
-        ("Key Insights",    len(insights),  INDIGO),
-        ("Sources",         len(sources),   NAVY),
-    ]
-    card_w   = W / len(kpi_items)
-    card_h   = 22
-    card_top = pdf.get_y()
-
-    for idx, (label, count, colour) in enumerate(kpi_items):
-        cx = L + idx * card_w
-        # Card background
-        pdf.set_fill_color(SHADE_L[0], SHADE_L[1], SHADE_L[2])
-        pdf.rect(cx, card_top, card_w - 1.5, card_h, style="F")
-        # Top accent strip
-        pdf.set_fill_color(*colour)
-        pdf.rect(cx, card_top, card_w - 1.5, 2.5, style="F")
-        # Count number
-        pdf.set_xy(cx, card_top + 4)
-        pdf.set_font("Helvetica", "B", 17)
-        pdf.set_text_color(*colour)
-        pdf.cell(card_w - 1.5, 9, _s(str(count)), align="C",
-                 new_x="RIGHT", new_y="TOP")
-        # Label text
-        pdf.set_xy(cx, card_top + 13)
-        pdf.set_font("Helvetica", "", 6.5)
-        pdf.set_text_color(*MID)
-        pdf.cell(card_w - 1.5, 5, _s(label), align="C",
-                 new_x="RIGHT", new_y="TOP")
-
-    pdf.set_y(card_top + card_h + 6)
-
-    # ── Section: Executive Summary ───────────────────────────────────────────
+    # ======================== EXECUTIVE SUMMARY ===============================
     if summary:
-        section_heading("Executive Summary", NAVY, "")
+        section_heading("Executive Summary")
+        body_text(summary)
 
-        # Shaded callout box
-        box_top = pdf.get_y()
-        # Measure height first by writing off-page, then draw box, then re-write
-        # fpdf2 does not support look-ahead, so we use a two-pass approach:
-        # pass 1 — write to get ending Y, pass 2 — draw rect then re-write.
-        pdf.set_x(L + 6)
-        pdf.set_font("Helvetica", "", 10)
-        pdf.set_text_color(*BLACK)
-        pdf.multi_cell(W - 12, 6, _s(summary))
-        box_bot = pdf.get_y()
-        box_h   = box_bot - box_top + 3
-
-        # Draw shaded rect behind the text (overdraw then re-write)
-        pdf.set_fill_color(SHADE_L[0], SHADE_L[1], SHADE_L[2])
-        pdf.set_draw_color(*INDIGO)
-        pdf.set_line_width(0.3)
-        pdf.rect(L, box_top - 1, W, box_h, style="FD")
-        pdf.set_line_width(0.2)
-        # Left accent bar
-        pdf.set_fill_color(*NAVY)
-        pdf.rect(L, box_top - 1, 3, box_h, style="F")
-        # Re-write text on top
-        pdf.set_xy(L + 6, box_top)
-        pdf.set_font("Helvetica", "", 10)
-        pdf.set_text_color(*BLACK)
-        pdf.multi_cell(W - 12, 6, _s(summary))
-        sp(5)
-
-
-    # ════════════════════ SECTION: COMPETITOR PRICING MOVES ══════════════════
+    # ================== COMPETITOR PRICING MOVES ==============================
     if pricing:
-        section_heading("Competitor Pricing Moves", BLUE, "")
+        section_heading("Competitor Pricing Moves")
 
-        # Table header
-        col_comp  = 42
-        col_desc  = W - col_comp - 18
-        col_cite  = 18
-        row_h     = 6
-
-        def table_header_pricing():
-            pdf.set_fill_color(*BLUE)
-            pdf.set_text_color(*WHITE)
-            pdf.set_font("Helvetica", "B", 8)
-            pdf.set_x(L)
-            pdf.cell(col_comp, row_h, _s("  Competitor"),  fill=True)
-            pdf.cell(col_desc, row_h, _s("  Change Detail"), fill=True)
-            pdf.cell(col_cite, row_h, _s("Ref"), fill=True, align="C",
-                     new_x="LMARGIN", new_y="NEXT")
-
-        table_header_pricing()
-        for i, pm in enumerate(pricing):
-            cite_str = _cite_nums(pm.get("citations", []))
-            desc     = pm.get("description", "")
-            comp     = pm.get("competitor", "Unknown")
-            fill_col = SHADE_L if i % 2 == 0 else WHITE
-            pdf.set_fill_color(*fill_col)
-            pdf.set_text_color(*DARK)
-            pdf.set_font("Helvetica", "B", 8.5)
-            pdf.set_x(L)
-            # Measure wrapped height for description
-            pdf.set_font("Helvetica", "", 8)
-            lines_needed = max(1, len(desc) // 70 + 1)
-            cell_h = max(row_h + 2, lines_needed * 5)
-            start_y = pdf.get_y()
-            # Competitor name cell (vertically centred via manual offset)
-            pdf.set_font("Helvetica", "B", 8.5)
-            pdf.set_fill_color(*fill_col)
-            pdf.rect(L, start_y, col_comp, cell_h, style="F")
-            pdf.set_xy(L + 2, start_y + 1)
-            pdf.multi_cell(col_comp - 2, 5, _s(comp[:28]))
-            # Description cell
-            pdf.set_fill_color(*fill_col)
-            pdf.rect(L + col_comp, start_y, col_desc, cell_h, style="F")
-            pdf.set_xy(L + col_comp + 2, start_y + 1)
-            pdf.set_font("Helvetica", "", 8)
-            pdf.set_text_color(*BLACK)
-            pdf.multi_cell(col_desc - 4, 5, _s(desc))
-            # Citation cell
-            pdf.set_fill_color(*fill_col)
-            pdf.rect(L + col_comp + col_desc, start_y, col_cite, cell_h, style="F")
-            pdf.set_xy(L + col_comp + col_desc + 1, start_y + 1)
-            pdf.set_font("Helvetica", "", 7.5)
-            pdf.set_text_color(*BLUE)
-            pdf.multi_cell(col_cite - 2, 5, _s(cite_str))
-            # Advance cursor
-            pdf.set_y(start_y + cell_h)
-            # Row border line
-            pdf.set_draw_color(*RULE)
-            pdf.line(L, pdf.get_y(), L + W, pdf.get_y())
-        sp(6)
-
-    # ═════════════════════════ SECTION: PRODUCT LAUNCHES ═════════════════════
-    if launches:
-        section_heading("Product Launches", TEAL, "")
-
-        col_comp  = 38
-        col_prod  = 44
-        col_desc  = W - col_comp - col_prod - 16
-        col_cite  = 16
-        row_h     = 6
-
-        def table_header_launches():
-            pdf.set_fill_color(*TEAL)
-            pdf.set_text_color(*WHITE)
-            pdf.set_font("Helvetica", "B", 8)
-            pdf.set_x(L)
-            pdf.cell(col_comp, row_h, _s("  Competitor"),   fill=True)
-            pdf.cell(col_prod, row_h, _s("  Product"),      fill=True)
-            pdf.cell(col_desc, row_h, _s("  Description"),  fill=True)
-            pdf.cell(col_cite, row_h, _s("Ref"), fill=True, align="C",
-                     new_x="LMARGIN", new_y="NEXT")
-
-        table_header_launches()
-        for i, pl in enumerate(launches):
-            cite_str = _cite_nums(pl.get("citations", []))
-            desc     = pl.get("description", "")
-            comp     = pl.get("competitor", "Unknown")
-            prod     = pl.get("product_name", "")
-            fill_col = SHADE_L if i % 2 == 0 else WHITE
-            start_y  = pdf.get_y()
-            lines_needed = max(1, len(desc) // 58 + 1)
-            cell_h   = max(row_h + 2, lines_needed * 5)
-
-            pdf.set_fill_color(*fill_col)
-            pdf.rect(L, start_y, col_comp, cell_h, style="F")
-            pdf.set_xy(L + 2, start_y + 1)
-            pdf.set_font("Helvetica", "B", 8)
-            pdf.set_text_color(*DARK)
-            pdf.multi_cell(col_comp - 2, 5, _s(comp[:24]))
-
-            pdf.set_fill_color(*fill_col)
-            pdf.rect(L + col_comp, start_y, col_prod, cell_h, style="F")
-            pdf.set_xy(L + col_comp + 2, start_y + 1)
-            pdf.set_font("Helvetica", "B", 8)
-            pdf.set_text_color(*TEAL)
-            pdf.multi_cell(col_prod - 2, 5, _s(prod[:30]))
-
-            pdf.set_fill_color(*fill_col)
-            pdf.rect(L + col_comp + col_prod, start_y, col_desc, cell_h, style="F")
-            pdf.set_xy(L + col_comp + col_prod + 2, start_y + 1)
-            pdf.set_font("Helvetica", "", 8)
-            pdf.set_text_color(*BLACK)
-            pdf.multi_cell(col_desc - 4, 5, _s(desc))
-
-            pdf.set_fill_color(*fill_col)
-            pdf.rect(L + col_comp + col_prod + col_desc, start_y, col_cite, cell_h, style="F")
-            pdf.set_xy(L + col_comp + col_prod + col_desc + 1, start_y + 1)
-            pdf.set_font("Helvetica", "", 7.5)
-            pdf.set_text_color(*TEAL)
-            pdf.multi_cell(col_cite - 2, 5, _s(cite_str))
-
-            pdf.set_y(start_y + cell_h)
-            pdf.set_draw_color(*RULE)
-            pdf.line(L, pdf.get_y(), L + W, pdf.get_y())
-        sp(6)
-
-    # ══════════════════════════ SECTION: MARKET SIGNALS ══════════════════════
-    if signals:
-        section_heading("Market Signals", AMBER, "")
-
-        col_sig  = 52
-        col_det  = W - col_sig - 16
-        col_cite = 16
+        col_comp = 40
+        col_desc = W - col_comp - 16
+        col_ref  = 16
         row_h    = 6
 
-        def table_header_signals():
-            pdf.set_fill_color(*AMBER)
-            pdf.set_text_color(*WHITE)
-            pdf.set_font("Helvetica", "B", 8)
-            pdf.set_x(L)
-            pdf.cell(col_sig,  row_h, _s("  Signal"),  fill=True)
-            pdf.cell(col_det,  row_h, _s("  Detail"),  fill=True)
-            pdf.cell(col_cite, row_h, _s("Ref"), fill=True, align="C",
-                     new_x="LMARGIN", new_y="NEXT")
+        pdf.set_fill_color(*XLIGHT)
+        pdf.set_draw_color(*LGREY)
+        pdf.set_line_width(0.2)
+        pdf.set_font("Helvetica", "B", 8.5)
+        pdf.set_text_color(*BLACK)
+        pdf.set_x(L)
+        pdf.cell(col_comp, row_h, _s("  Competitor"),    border=1, fill=True)
+        pdf.cell(col_desc, row_h, _s("  Change Detail"), border=1, fill=True)
+        pdf.cell(col_ref,  row_h, _s("Ref"),              border=1, fill=True,
+                 align="C", new_x="LMARGIN", new_y="NEXT")
 
-        table_header_signals()
-        for i, ms in enumerate(signals):
-            cite_str = _cite_nums(ms.get("citations", []))
-            sig      = ms.get("signal", "")
-            det      = ms.get("detail", "")
-            fill_col = SHADE_L if i % 2 == 0 else WHITE
+        for pm in pricing:
+            comp     = _s(pm.get("competitor", "Unknown"))[:30]
+            desc     = _s(pm.get("description", ""))
+            cite_str = _s(_cite_nums(pm.get("citations", [])))
             start_y  = pdf.get_y()
-            lines_needed = max(1, len(det) // 72 + 1)
-            cell_h   = max(row_h + 2, lines_needed * 5)
 
-            pdf.set_fill_color(*fill_col)
-            pdf.rect(L, start_y, col_sig, cell_h, style="F")
-            pdf.set_xy(L + 2, start_y + 1)
-            pdf.set_font("Helvetica", "B", 8)
-            pdf.set_text_color(*AMBER)
-            pdf.multi_cell(col_sig - 2, 5, _s(sig[:40]))
+            pdf.set_font("Helvetica", "B", 8.5)
+            comp_lines = max(1, len(comp) // 22 + 1)
+            pdf.set_font("Helvetica", "", 8.5)
+            desc_lines = max(1, len(desc) // 68 + 1)
+            cell_h = max(comp_lines, desc_lines) * 5 + 2
 
-            pdf.set_fill_color(*fill_col)
-            pdf.rect(L + col_sig, start_y, col_det, cell_h, style="F")
-            pdf.set_xy(L + col_sig + 2, start_y + 1)
-            pdf.set_font("Helvetica", "", 8)
+            pdf.set_draw_color(*LGREY)
             pdf.set_text_color(*BLACK)
-            pdf.multi_cell(col_det - 4, 5, _s(det))
 
-            pdf.set_fill_color(*fill_col)
-            pdf.rect(L + col_sig + col_det, start_y, col_cite, cell_h, style="F")
-            pdf.set_xy(L + col_sig + col_det + 1, start_y + 1)
-            pdf.set_font("Helvetica", "", 7.5)
-            pdf.set_text_color(*AMBER)
-            pdf.multi_cell(col_cite - 2, 5, _s(cite_str))
+            pdf.set_xy(L + 2, start_y + 1)
+            pdf.set_font("Helvetica", "B", 8.5)
+            pdf.multi_cell(col_comp - 2, 5, comp)
+
+            pdf.set_xy(L + col_comp + 2, start_y + 1)
+            pdf.set_font("Helvetica", "", 8.5)
+            pdf.multi_cell(col_desc - 4, 5, desc)
+
+            pdf.set_xy(L + col_comp + col_desc + 1, start_y + 1)
+            pdf.set_font("Helvetica", "", 8)
+            pdf.set_text_color(*DGREY)
+            pdf.multi_cell(col_ref - 2, 5, cite_str)
 
             pdf.set_y(start_y + cell_h)
-            pdf.set_draw_color(*RULE)
-            pdf.line(L, pdf.get_y(), L + W, pdf.get_y())
-        sp(6)
+            pdf.set_draw_color(*LGREY)
+            pdf.rect(L, start_y, W, cell_h)
 
+    # ======================== PRODUCT LAUNCHES ================================
+    if launches:
+        section_heading("Product Launches")
 
-    # ════════════════════════════ SECTION: KEY INSIGHTS ══════════════════════
+        col_comp = 36
+        col_prod = 40
+        col_desc = W - col_comp - col_prod - 14
+        col_ref  = 14
+        row_h    = 6
+
+        pdf.set_fill_color(*XLIGHT)
+        pdf.set_draw_color(*LGREY)
+        pdf.set_line_width(0.2)
+        pdf.set_font("Helvetica", "B", 8.5)
+        pdf.set_text_color(*BLACK)
+        pdf.set_x(L)
+        pdf.cell(col_comp, row_h, _s("  Competitor"),  border=1, fill=True)
+        pdf.cell(col_prod, row_h, _s("  Product"),     border=1, fill=True)
+        pdf.cell(col_desc, row_h, _s("  Description"), border=1, fill=True)
+        pdf.cell(col_ref,  row_h, _s("Ref"),           border=1, fill=True,
+                 align="C", new_x="LMARGIN", new_y="NEXT")
+
+        for pl in launches:
+            comp     = _s(pl.get("competitor", "Unknown"))[:26]
+            prod     = _s(pl.get("product_name", ""))[:28]
+            desc     = _s(pl.get("description", ""))
+            cite_str = _s(_cite_nums(pl.get("citations", [])))
+            start_y  = pdf.get_y()
+
+            desc_lines = max(1, len(desc) // 56 + 1)
+            cell_h = desc_lines * 5 + 2
+
+            pdf.set_draw_color(*LGREY)
+            pdf.set_text_color(*BLACK)
+
+            pdf.set_xy(L + 2, start_y + 1)
+            pdf.set_font("Helvetica", "B", 8.5)
+            pdf.multi_cell(col_comp - 2, 5, comp)
+
+            pdf.set_xy(L + col_comp + 2, start_y + 1)
+            pdf.set_font("Helvetica", "B", 8.5)
+            pdf.multi_cell(col_prod - 2, 5, prod)
+
+            pdf.set_xy(L + col_comp + col_prod + 2, start_y + 1)
+            pdf.set_font("Helvetica", "", 8.5)
+            pdf.multi_cell(col_desc - 4, 5, desc)
+
+            pdf.set_xy(L + col_comp + col_prod + col_desc + 1, start_y + 1)
+            pdf.set_font("Helvetica", "", 8)
+            pdf.set_text_color(*DGREY)
+            pdf.multi_cell(col_ref - 2, 5, cite_str)
+
+            pdf.set_y(start_y + cell_h)
+            pdf.set_draw_color(*LGREY)
+            pdf.rect(L, start_y, W, cell_h)
+
+    # ============================ MARKET SIGNALS ==============================
+    if signals:
+        section_heading("Market Signals")
+
+        col_sig  = 48
+        col_det  = W - col_sig - 14
+        col_ref  = 14
+        row_h    = 6
+
+        pdf.set_fill_color(*XLIGHT)
+        pdf.set_draw_color(*LGREY)
+        pdf.set_line_width(0.2)
+        pdf.set_font("Helvetica", "B", 8.5)
+        pdf.set_text_color(*BLACK)
+        pdf.set_x(L)
+        pdf.cell(col_sig, row_h, _s("  Signal"), border=1, fill=True)
+        pdf.cell(col_det, row_h, _s("  Detail"), border=1, fill=True)
+        pdf.cell(col_ref, row_h, _s("Ref"),      border=1, fill=True,
+                 align="C", new_x="LMARGIN", new_y="NEXT")
+
+        for ms in signals:
+            sig      = _s(ms.get("signal", ""))[:40]
+            det      = _s(ms.get("detail", ""))
+            cite_str = _s(_cite_nums(ms.get("citations", [])))
+            start_y  = pdf.get_y()
+
+            det_lines = max(1, len(det) // 70 + 1)
+            cell_h = det_lines * 5 + 2
+
+            pdf.set_draw_color(*LGREY)
+            pdf.set_text_color(*BLACK)
+
+            pdf.set_xy(L + 2, start_y + 1)
+            pdf.set_font("Helvetica", "B", 8.5)
+            pdf.multi_cell(col_sig - 2, 5, sig)
+
+            pdf.set_xy(L + col_sig + 2, start_y + 1)
+            pdf.set_font("Helvetica", "", 8.5)
+            pdf.multi_cell(col_det - 4, 5, det)
+
+            pdf.set_xy(L + col_sig + col_det + 1, start_y + 1)
+            pdf.set_font("Helvetica", "", 8)
+            pdf.set_text_color(*DGREY)
+            pdf.multi_cell(col_ref - 2, 5, cite_str)
+
+            pdf.set_y(start_y + cell_h)
+            pdf.set_draw_color(*LGREY)
+            pdf.rect(L, start_y, W, cell_h)
+
+    # ============================ KEY INSIGHTS ================================
     if insights:
-        section_heading("Key Insights", INDIGO, "")
+        section_heading("Key Insights")
 
-        TYPE_COLOUR = {
-            "trend":       BLUE,
-            "opportunity": GREEN,
-            "observation": TEAL,
-            "risk":        ROSE,
-            "threat":      ROSE,
-        }
-
-        for ins in insights:
-            itype    = ins.get("type", "observation")
-            colour   = TYPE_COLOUR.get(itype, INDIGO)
-            title_t  = ins.get("title", "")
-            detail_t = ins.get("detail", "")
+        for i, ins in enumerate(insights):
+            itype    = ins.get("type", "observation").capitalize()
+            title_t  = _s(ins.get("title", ""))
+            detail_t = _s(ins.get("detail", ""))
             cite_str = _cite_nums(ins.get("citations", []))
 
-            top_y  = pdf.get_y()
-            stripe = 3          # left accent stripe width
-
-            # Write content first to measure height
-            pdf.set_x(L + stripe + 5)
-            # Type badge
-            badge_txt = itype.upper()
-            pdf.set_font("Helvetica", "B", 7)
-            bw = pdf.get_string_width(_s(badge_txt)) + 4
-            pdf.set_fill_color(*colour)
-            pdf.set_text_color(*WHITE)
-            pdf.rect(L + stripe + 5, top_y + 1, bw, 4.5, style="F")
-            pdf.set_xy(L + stripe + 5, top_y + 1)
-            pdf.cell(bw, 4.5, _s(badge_txt), align="C")
-
-            # Title
-            pdf.set_xy(L + stripe + 5 + bw + 2, top_y + 1)
-            pdf.set_font("Helvetica", "B", 9.5)
-            pdf.set_text_color(*DARK)
-            pdf.multi_cell(W - stripe - 5 - bw - 2, 5.5, _s(title_t))
-
-            # Detail body
-            pdf.set_x(L + stripe + 5)
-            pdf.set_font("Helvetica", "", 8.5)
-            pdf.set_text_color(*BLACK)
-            pdf.multi_cell(W - stripe - 5, 5, _s(detail_t))
-
-            # Citation footnote
-            if cite_str:
-                pdf.set_x(L + stripe + 5)
-                pdf.set_font("Helvetica", "I", 7)
-                pdf.set_text_color(*LIGHT)
-                pdf.multi_cell(W - stripe - 5, 4, _s(cite_str))
-
-            bot_y = pdf.get_y()
-            # Draw the coloured left stripe over the full card height
-            pdf.set_fill_color(*colour)
-            pdf.rect(L, top_y, stripe, bot_y - top_y, style="F")
-            # Subtle card background
-            pdf.set_fill_color(SHADE_L[0], SHADE_L[1], SHADE_L[2])
-            # (already drawn inline content — background drawn before text next iteration)
-            sp(4)
-
-    # ══════════════════════ SECTION: STRATEGIC RECOMMENDATION ════════════════
-    if rec:
-        section_heading("Strategic Recommendation", GREEN, "")
-
-        box_top = pdf.get_y()
-        pad     = 5
-
-        # First pass — write text to measure height
-        pdf.set_x(L + pad + 3)
-        pdf.set_font("Helvetica", "B", 9)
-        pdf.set_text_color(*GREEN)
-        pdf.cell(W - pad - 3, 6, _s("Recommended Action"))
-        pdf.ln(6)
-        pdf.set_x(L + pad + 3)
-        pdf.set_font("Helvetica", "", 9.5)
-        pdf.set_text_color(*BLACK)
-        pdf.multi_cell(W - pad - 3, 5.5, _s(rec))
-        box_bot = pdf.get_y()
-        box_h   = box_bot - box_top + pad
-
-        # Draw green-tinted box + left bar
-        pdf.set_fill_color(*SHADE_G)
-        pdf.set_draw_color(*GREEN)
-        pdf.set_line_width(0.4)
-        pdf.rect(L, box_top - 1, W, box_h, style="FD")
-        pdf.set_line_width(0.2)
-        pdf.set_fill_color(*GREEN)
-        pdf.rect(L, box_top - 1, 4, box_h, style="F")
-
-        # Second pass — re-write text on top of the filled box
-        pdf.set_xy(L + pad + 3, box_top)
-        pdf.set_font("Helvetica", "B", 9)
-        pdf.set_text_color(*GREEN)
-        pdf.cell(W - pad - 3, 6, _s("Recommended Action"),
-                 new_x="LMARGIN", new_y="NEXT")
-        pdf.set_x(L + pad + 3)
-        pdf.set_font("Helvetica", "", 9.5)
-        pdf.set_text_color(*BLACK)
-        pdf.multi_cell(W - pad - 3, 5.5, _s(rec))
-        sp(8)
-
-    # ════════════════════════════ REFERENCES PAGE ════════════════════════════
-    if _ref_list:
-        pdf.add_page()
-        section_heading("References", NAVY, "")
-
-        pdf.set_font("Helvetica", "", 8)
-        for n, title_r, url_r in _ref_list:
-            # Row background alternating
-            fill_col = SHADE_L if n % 2 == 1 else WHITE
-            row_top  = pdf.get_y()
-
-            # Number
-            pdf.set_fill_color(*fill_col)
-            pdf.set_font("Helvetica", "B", 8)
-            pdf.set_text_color(*NAVY)
             pdf.set_x(L)
-            pdf.cell(8, 5, _s(f"[{n}]"))
+            pdf.set_font("Helvetica", "B", 8.5)
+            pdf.set_text_color(*DGREY)
+            lbl_w = pdf.get_string_width(_s(itype)) + 2
+            pdf.cell(lbl_w, 5, _s(itype))
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.set_text_color(*BLACK)
+            pdf.multi_cell(W - lbl_w, 5, _s(f"  {title_t}"))
 
-            # Title (bold)
-            pdf.set_font("Helvetica", "B", 8)
-            pdf.set_text_color(*DARK)
-            title_disp = _s(title_r[:90]) if title_r != url_r else ""
+            if detail_t:
+                pdf.set_x(L + 4)
+                pdf.set_font("Helvetica", "", 8.5)
+                pdf.set_text_color(*BLACK)
+                pdf.multi_cell(W - 4, 5, detail_t)
+
+            if cite_str:
+                pdf.set_x(L + 4)
+                pdf.set_font("Helvetica", "I", 7.5)
+                pdf.set_text_color(*MGREY)
+                pdf.multi_cell(W - 4, 4, _s(cite_str))
+
+            # Separator between insights (not after the last one)
+            if i < len(insights) - 1:
+                sp(3)
+                pdf.set_draw_color(*LGREY)
+                pdf.set_line_width(0.2)
+                pdf.line(L, pdf.get_y(), L + W, pdf.get_y())
+                sp(3)
+
+    # ====================== STRATEGIC RECOMMENDATION ==========================
+    if rec:
+        section_heading("Strategic Recommendation")
+        pdf.set_x(L)
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.set_text_color(*DGREY)
+        pdf.cell(0, 5.5, _s("Recommended Action"), new_x="LMARGIN", new_y="NEXT")
+        sp(1)
+        body_text(rec, indent=4)
+
+    # ============================ REFERENCES ==================================
+    if _ref_list:
+        section_heading("References")
+
+        for n, title_r, url_r in _ref_list:
+            pdf.set_x(L)
+            pdf.set_font("Helvetica", "B", 8.5)
+            pdf.set_text_color(*BLACK)
+            title_disp = _s(title_r[:100]) if title_r != url_r else ""
+            pdf.cell(10, 5, _s(f"[{n}]"))
             if title_disp:
-                pdf.multi_cell(W - 8, 5, title_disp)
+                pdf.set_font("Helvetica", "B", 8.5)
+                pdf.multi_cell(W - 10, 5, title_disp)
             else:
                 pdf.ln(5)
-
-            # URL (lighter, smaller)
-            pdf.set_x(L + 8)
-            pdf.set_font("Helvetica", "", 7)
-            pdf.set_text_color(*LIGHT)
-            pdf.multi_cell(W - 8, 4, _s(url_r[:110]))
-
-            # Row separator
-            pdf.set_draw_color(*RULE)
-            pdf.line(L, pdf.get_y(), L + W, pdf.get_y())
-            pdf.ln(1)
-
-        # Failed sources note
-        if failed:
-            sp(5)
-            pdf.set_font("Helvetica", "B", 8.5)
-            pdf.set_text_color(*ROSE)
-            pdf.cell(W, 5, _s(f"Skipped / Failed Sources ({len(failed)})"),
-                     new_x="LMARGIN", new_y="NEXT")
+            pdf.set_x(L + 10)
+            pdf.set_font("Helvetica", "", 8)
+            pdf.set_text_color(*MGREY)
+            pdf.multi_cell(W - 10, 4, _s(url_r[:120]))
             sp(2)
+
+        if failed:
+            sp(3)
+            hrule()
+            pdf.set_x(L)
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.set_text_color(*BLACK)
+            pdf.cell(0, 5.5, _s(f"Skipped / Failed Sources ({len(failed)})"),
+                     new_x="LMARGIN", new_y="NEXT")
+            sp(1)
             for fs in failed:
-                reason = (fs.get("failure_reason") or fs.get("title") or "unknown")[:90]
-                pdf.set_x(L + 3)
-                pdf.set_font("Helvetica", "", 8)
-                pdf.set_text_color(*ROSE)
+                reason = _s((fs.get("failure_reason") or fs.get("title") or "unknown")[:100])
+                pdf.set_x(L + 4)
+                pdf.set_font("Helvetica", "", 8.5)
+                pdf.set_text_color(*DGREY)
                 pdf.cell(4, 5, _s("-"))
-                pdf.multi_cell(W - 4, 5, _s(reason))
+                pdf.multi_cell(W - 4, 5, reason)
 
     return bytes(pdf.output())
 
 
-# ── Full briefing renderer ────────────────────────────────────────────────────
+# -- Full briefing renderer ----------------------------------------------------
 
 def render_briefing(briefing: Dict):
     """Render all sections of a completed BriefingOutput dict."""
     meta = briefing.get("run_metadata", {})
 
-    # ── Dashboard overview row ────────────────────────────────────────────────
+    # -- Dashboard overview row ------------------------------------------------
     render_overview_metrics(briefing)
     st.markdown("<div style='height:0.6rem'></div>", unsafe_allow_html=True)
 
@@ -2229,7 +1994,7 @@ def render_briefing(briefing: Dict):
     render_feature_strip()
 
 
-# ── Streaming progress display ────────────────────────────────────────────────
+# -- Streaming progress display ------------------------------------------------
 
 def run_with_progress(topic: str, max_sources: int, max_steps: int, container) -> Dict:
     """
@@ -2241,11 +2006,11 @@ def run_with_progress(topic: str, max_sources: int, max_steps: int, container) -
     from graph import stream_briefing
 
     NODE_LABELS = {
-        "coordinator": ("🎯", "Coordinator", "Validating topic & initialising run…"),
-        "researcher":  ("🔍", "Researcher",  "Searching the web for competitive data…"),
-        "validator":   ("🛡️",  "Validator",   "Checking source quality & relevance…"),
-        "analyst":     ("🧠", "Analyst",     "Extracting insights from research…"),
-        "writer":      ("✍️",  "Writer",      "Composing your briefing…"),
+        "coordinator": ("🎯", "Coordinator", "Validating topic & initialising run..."),
+        "researcher":  ("🔍", "Researcher",  "Searching the web for competitive data..."),
+        "validator":   ("🛡️",  "Validator",   "Checking source quality & relevance..."),
+        "analyst":     ("🧠", "Analyst",     "Extracting insights from research..."),
+        "writer":      ("✍️",  "Writer",      "Composing your briefing..."),
     }
     NODE_ORDER = ["coordinator", "researcher", "validator", "analyst", "writer"]
 
@@ -2330,21 +2095,21 @@ def run_with_progress(topic: str, max_sources: int, max_steps: int, container) -
     return final_state.get("briefing_output") or {}
 
 
-# ── History: full-screen read-only report viewer ──────────────────────────────
+# -- History: full-screen read-only report viewer ------------------------------
 
 def render_history_page(report_id: str) -> None:
     """
     Renders a stored report in read-only mode, filling the full content area.
     A Back button at the top clears history_view_id and returns to the main view.
     """
-    # ── Back button row ───────────────────────────────────────────────────────
+    # -- Back button row -------------------------------------------------------
     col_back, col_title = st.columns([1, 7])
     with col_back:
         if st.button("← Back", use_container_width=True, key="hist_back_btn"):
             st.session_state["history_view_id"] = None
             st.rerun()
 
-    # ── Load the briefing ─────────────────────────────────────────────────────
+    # -- Load the briefing -----------------------------------------------------
     briefing = _report_store.get(report_id)
     if briefing is None:
         st.error(f"Report `{report_id}` not found in the archive.")
@@ -2362,9 +2127,9 @@ def render_history_page(report_id: str) -> None:
 
     try:
         dt = datetime.fromisoformat(str(created_raw).replace("Z", "+00:00"))
-        ts = dt.strftime("%A, %B %d %Y · %H:%M UTC")
+        ts = dt.strftime("%A, %B %d %Y . %H:%M UTC")
     except Exception:
-        ts = str(created_raw)[:19] if created_raw else "–"
+        ts = str(created_raw)[:19] if created_raw else "-"
 
     with col_title:
         st.markdown(
@@ -2378,7 +2143,7 @@ def render_history_page(report_id: str) -> None:
             unsafe_allow_html=True,
         )
 
-    # ── Read-only badge ───────────────────────────────────────────────────────
+    # -- Read-only badge -------------------------------------------------------
     st.markdown(
         '<div style="display:inline-flex;align-items:center;gap:6px;'
         'background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.3);'
@@ -2389,11 +2154,11 @@ def render_history_page(report_id: str) -> None:
 
     st.divider()
 
-    # ── Reuse the existing full briefing renderer ─────────────────────────────
+    # -- Reuse the existing full briefing renderer -----------------------------
     render_briefing(briefing)
 
 
-# ── History: main tab (table + search + delete) ───────────────────────────────
+# -- History: main tab (table + search + delete) -------------------------------
 
 def render_history_tab() -> None:
     """
@@ -2401,10 +2166,10 @@ def render_history_tab() -> None:
 
     Layout
     ------
-    • Search box (filters by title / topic / competitors)
-    • Summary metrics: total reports, date range
-    • Sortable results table (newest first)
-    • Per-row: Open button + Delete button with inline confirmation
+    - Search box (filters by title / topic / competitors)
+    - Summary metrics: total reports, date range
+    - Sortable results table (newest first)
+    - Per-row: Open button + Delete button with inline confirmation
     """
     st.markdown(
         '<div style="font-size:0.7rem;font-weight:800;letter-spacing:0.12em;'
@@ -2413,17 +2178,17 @@ def render_history_tab() -> None:
         unsafe_allow_html=True,
     )
 
-    # ── Search bar ────────────────────────────────────────────────────────────
+    # -- Search bar ------------------------------------------------------------
     search_query = st.text_input(
         "Search reports",
         value=st.session_state.get("history_search", ""),
-        placeholder="Filter by topic, title, or competitor name…",
+        placeholder="Filter by topic, title, or competitor name...",
         key="history_search_input",
         label_visibility="collapsed",
     )
     st.session_state["history_search"] = search_query
 
-    # ── Load rows ─────────────────────────────────────────────────────────────
+    # -- Load rows -------------------------------------------------------------
     if search_query.strip():
         rows = _report_store.search(search_query.strip())
     else:
@@ -2431,7 +2196,7 @@ def render_history_tab() -> None:
 
     total_db = _report_store.count()
 
-    # ── Summary metrics strip ─────────────────────────────────────────────────
+    # -- Summary metrics strip -------------------------------------------------
     m1, m2, m3 = st.columns(3)
     with m1:
         st.markdown(
@@ -2463,9 +2228,9 @@ def render_history_tab() -> None:
                     rows[0]["created_at"].replace("Z", "+00:00")
                 ).strftime("%b %d, %Y")
             except Exception:
-                newest = "–"
+                newest = "-"
         else:
-            newest = "–"
+            newest = "-"
         st.markdown(
             f'<div style="background:rgba(255,255,255,0.035);border:1px solid '
             f'rgba(255,255,255,0.08);border-top:3px solid #34d399;border-radius:12px;'
@@ -2480,14 +2245,14 @@ def render_history_tab() -> None:
 
     st.markdown("<div style='height:0.8rem'></div>", unsafe_allow_html=True)
 
-    # ── Empty state ───────────────────────────────────────────────────────────
+    # -- Empty state -----------------------------------------------------------
     if not rows:
         st.markdown(
             '<div class="welcome-box" style="padding:2.5rem 1.5rem">'
             '<div class="w-icon" style="width:52px;height:52px;font-size:1.4rem">📭</div>'
             + (
                 '<h3>No reports match your search</h3>'
-                f'<p>Try a different keyword — {total_db} report(s) are stored.</p>'
+                f'<p>Try a different keyword -- {total_db} report(s) are stored.</p>'
                 if search_query else
                 '<h3>No reports saved yet</h3>'
                 '<p>Run a brief to start building your archive.</p>'
@@ -2497,7 +2262,7 @@ def render_history_tab() -> None:
         )
         return
 
-    # ── Table header ──────────────────────────────────────────────────────────
+    # -- Table header ----------------------------------------------------------
     st.markdown(
         '<div style="display:grid;grid-template-columns:1fr 2fr 1.4fr 1fr 90px 90px;'
         'gap:0.5rem;padding:0.45rem 0.9rem;'
@@ -2514,14 +2279,14 @@ def render_history_tab() -> None:
         unsafe_allow_html=True,
     )
 
-    # ── Pending delete confirmation state ─────────────────────────────────────
+    # -- Pending delete confirmation state -------------------------------------
     delete_pending_id = st.session_state.get("history_delete_id")
 
     for row in rows:
         rid         = row["id"]
         title       = row["title"] or "Untitled Report"
-        topic       = row["topic"] or "–"
-        competitors = row.get("competitors") or "–"
+        topic       = row["topic"] or "-"
+        competitors = row.get("competitors") or "-"
         created_raw = row.get("created_at", "")
         duration    = row.get("duration_sec")
 
@@ -2529,9 +2294,9 @@ def render_history_tab() -> None:
             dt = datetime.fromisoformat(created_raw.replace("Z", "+00:00"))
             ts = dt.strftime("%b %d %Y, %H:%M")
         except Exception:
-            ts = created_raw[:16] if created_raw else "–"
+            ts = created_raw[:16] if created_raw else "-"
 
-        dur_label = f"{int(duration)}s" if duration else "–"
+        dur_label = f"{int(duration)}s" if duration else "-"
         is_viewing = (st.session_state.get("history_view_id") == rid)
         is_deleting = (delete_pending_id == rid)
 
@@ -2553,12 +2318,12 @@ def render_history_tab() -> None:
             # Title + topic
             f'<div><div style="font-size:0.84rem;font-weight:700;color:var(--text-hi);'
             f'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px"'
-            f' title="{title}">{title[:55]}{"…" if len(title)>55 else ""}</div>'
+            f' title="{title}">{title[:55]}{"..." if len(title)>55 else ""}</div>'
             f'<div style="font-size:0.70rem;color:var(--text-low)">{topic[:60]}</div></div>'
             # Competitors
             f'<div style="font-size:0.76rem;color:var(--text-mid);white-space:nowrap;'
             f'overflow:hidden;text-overflow:ellipsis" title="{competitors}">'
-            f'{competitors[:42]}{"…" if len(competitors)>42 else ""}</div>'
+            f'{competitors[:42]}{"..." if len(competitors)>42 else ""}</div>'
             # Date + duration
             f'<div><div style="font-size:0.78rem;color:var(--text-mid)">{ts}</div>'
             f'<div style="font-size:0.68rem;color:var(--text-low)">{dur_label}</div></div>'
@@ -2581,7 +2346,7 @@ def render_history_tab() -> None:
 
         with btn_col_del:
             if is_deleting:
-                # ── Confirmation row ──────────────────────────────────────────
+                # -- Confirmation row ------------------------------------------
                 st.markdown(
                     '<div style="background:rgba(244,63,94,0.12);border:1px solid '
                     'rgba(244,63,94,0.4);border-radius:9px;padding:0.45rem 0.7rem;'
@@ -2611,7 +2376,7 @@ def render_history_tab() -> None:
         st.markdown("<div style='height:0.1rem'></div>", unsafe_allow_html=True)
 
 
-# ── Main entrypoint ───────────────────────────────────────────────────────────
+# -- Main entrypoint -----------------------------------------------------------
 
 def main():
     init_session()
@@ -2623,7 +2388,7 @@ def main():
     render_page_header(briefing)
     render_sidebar(meta, running)
 
-    # ── Input row — always rendered at the same position ─────────────────────
+    # -- Input row -- always rendered at the same position ---------------------
     # During execution the input is read-only (disabled) but its VALUE is
     # explicitly set from session state so the topic stays visible.
     # The "Clear Chat" button is ALWAYS shown (enabled once there is a topic
@@ -2638,7 +2403,7 @@ def main():
             if running:
                 topic = st.text_input(
                     "Market / topic to brief",
-                    placeholder="e.g. CRM software market, AI coding assistants, fintech payments…",
+                    placeholder="e.g. CRM software market, AI coding assistants, fintech payments...",
                     value=st.session_state.get("last_topic", ""),
                     disabled=True,
                     key="topic_widget",
@@ -2647,7 +2412,7 @@ def main():
             else:
                 topic = st.text_input(
                     "Market / topic to brief",
-                    placeholder="e.g. CRM software market, AI coding assistants, fintech payments…",
+                    placeholder="e.g. CRM software market, AI coding assistants, fintech payments...",
                     key="topic_widget",
                     label_visibility="collapsed",
                 )
@@ -2678,12 +2443,12 @@ def main():
 
     max_sources, max_steps = render_settings_expander()
 
-    # ── Single stable content slot — never changes position ──────────────────
+    # -- Single stable content slot -- never changes position ------------------
     # All three states (welcome / running / briefing) render into this one
     # placeholder so nothing above or below it ever shifts.
     content_slot = st.empty()
 
-    # ── Handle Clear Chat ─────────────────────────────────────────────────────
+    # -- Handle Clear Chat -----------------------------------------------------
     if clear_clicked and not running:
         st.session_state["briefing"]    = None
         st.session_state["last_topic"]  = ""
@@ -2691,7 +2456,7 @@ def main():
         st.session_state["running"]     = False
         st.rerun()
 
-    # ── Handle Run button click ───────────────────────────────────────────────
+    # -- Handle Run button click -----------------------------------------------
     if run_clicked and not running:
         topic_value = topic.strip()
         if not topic_value:
@@ -2702,12 +2467,12 @@ def main():
             st.session_state["last_topic"]  = topic_value
             st.session_state["topic_input"] = topic_value
             st.session_state["running"]     = True
-            # Do NOT clear briefing here — keep the previous result visible
+            # Do NOT clear briefing here -- keep the previous result visible
             # in session state until the new one arrives. The content_slot
             # will show the progress UI instead regardless.
             st.rerun()
 
-    # ── Execute pipeline (running state) ─────────────────────────────────────
+    # -- Execute pipeline (running state) -------------------------------------
     if running:
         topic_value = st.session_state.get("last_topic", "")
 
@@ -2730,7 +2495,7 @@ def main():
 
         if briefing_dict:
             st.session_state["briefing"] = briefing_dict
-            # ── Auto-save to history archive ──────────────────────────────────
+            # -- Auto-save to history archive ----------------------------------
             try:
                 _report_store.save(briefing_dict)
                 st.session_state["history_stale"] = True
@@ -2739,10 +2504,10 @@ def main():
         st.session_state["running"] = False
         st.rerun()
 
-    # ── Render completed briefing ─────────────────────────────────────────────
+    # -- Render completed briefing ---------------------------------------------
     elif briefing:
         with content_slot.container():
-            # ── History viewer takes over the full content area ───────────────
+            # -- History viewer takes over the full content area ---------------
             history_view_id = st.session_state.get("history_view_id")
             if history_view_id:
                 render_history_page(history_view_id)
@@ -2755,7 +2520,7 @@ def main():
                 with tabs[1]:
                     render_history_tab()
 
-    # ── Welcome state ─────────────────────────────────────────────────────────
+    # -- Welcome state ---------------------------------------------------------
     else:
         # Check if the user navigated to a history entry from the sidebar
         history_view_id = st.session_state.get("history_view_id")
@@ -2770,11 +2535,11 @@ def main():
                     st.markdown(
                         """
                         <div class="welcome-box">
-                            <div class="w-icon">📊</div>
+                            <div class="w-icon">?</div>
                             <h3>Enter a market topic above to generate your briefing</h3>
                             <p>
                                 The AI crew will search the web, analyse competitors, and produce a
-                                structured weekly briefing with inline citations — in under 3 minutes.
+                                structured weekly briefing with inline citations -- in under 3 minutes.
                             </p>
                         </div>
                         """,
