@@ -17,6 +17,9 @@ from typing import Any, Dict, List, Optional
 
 import streamlit as st
 
+# ── History / Archive store ───────────────────────────────────────────────────
+from history import store as _report_store
+
 # ── Page config (must be first Streamlit call) ────────────────────────────────
 st.set_page_config(
     page_title="MarketPulse — Competitive Intelligence",
@@ -190,8 +193,9 @@ h1, h2, h3, h4 { font-family: 'Manrope', 'Inter', sans-serif; letter-spacing: -0
     margin-top: 0.4rem;
 }
 
-/* sidebar buttons */
-[data-testid="stSidebar"] div.stButton > button {
+/* sidebar buttons — brand gradient (primary: Run Brief, Clear Chat, etc.) */
+[data-testid="stSidebar"] [data-testid="baseButton-primary"],
+[data-testid="stSidebar"] div.stButton > button:not([data-testid="baseButton-secondary"]) {
     background: var(--grad-brand) !important;
     color: #ffffff !important;
     border: none !important;
@@ -199,7 +203,29 @@ h1, h2, h3, h4 { font-family: 'Manrope', 'Inter', sans-serif; letter-spacing: -0
     font-weight: 700 !important;
     box-shadow: 0 8px 24px rgba(139,92,246,0.35);
 }
-[data-testid="stSidebar"] div.stButton > button:hover { filter: brightness(1.08); }
+[data-testid="stSidebar"] [data-testid="baseButton-primary"]:hover,
+[data-testid="stSidebar"] div.stButton > button:not([data-testid="baseButton-secondary"]):hover {
+    filter: brightness(1.08);
+}
+
+/* History "Open" buttons in sidebar — ghost style so they're visible on dark bg */
+/* Streamlit 1.46 renders secondary buttons with data-testid="baseButton-secondary" */
+[data-testid="stSidebar"] [data-testid="baseButton-secondary"] {
+    background: rgba(139,92,246,0.15) !important;
+    color: #a78bfa !important;
+    border: 1px solid rgba(139,92,246,0.4) !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    font-size: 0.78rem !important;
+    box-shadow: none !important;
+    width: 100% !important;
+}
+[data-testid="stSidebar"] [data-testid="baseButton-secondary"]:hover {
+    background: rgba(139,92,246,0.28) !important;
+    border-color: rgba(139,92,246,0.65) !important;
+    color: #c4b5fd !important;
+    filter: none !important;
+}
 
 /* ══════════════════════════ MAIN HEADER ══════════════════════════ */
 .mp-header {
@@ -248,7 +274,7 @@ h1, h2, h3, h4 { font-family: 'Manrope', 'Inter', sans-serif; letter-spacing: -0
     border: 1px solid var(--border-soft);
     border-radius: var(--radius-md);
     padding: 1.1rem 1.2rem;
-    height: 100%;
+    margin-bottom: 1.2rem;
     transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 .preview-card:hover { transform: translateY(-2px); border-color: var(--border-med); background: var(--glass-strong); }
@@ -498,6 +524,7 @@ _PALETTE = [
 
 def _bar_chart(labels: list, values: list, title: str, colour: str = "#8b5cf6") -> go.Figure:
     """Horizontal bar chart for competitor comparisons."""
+    max_val = max(values) if values else 1
     fig = go.Figure(go.Bar(
         x=values, y=labels,
         orientation="h",
@@ -508,14 +535,25 @@ def _bar_chart(labels: list, values: list, title: str, colour: str = "#8b5cf6") 
         text=[str(v) for v in values],
         textposition="outside",
         textfont=dict(size=11, color="#b6b1cc"),
+        cliponaxis=False,
     ))
     fig.update_layout(
         **_CHART_LAYOUT,
-        height=300,
+        height=max(240, len(labels) * 52),
         title=dict(text=title, font=dict(size=13, color="#f3f1fa"), x=0),
-        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-        yaxis=dict(showgrid=False, tickfont=dict(size=12, color="#f3f1fa")),
+        # 30 % headroom on the right so "outside" text labels are never clipped
+        xaxis=dict(
+            showgrid=False, zeroline=False, showticklabels=False,
+            range=[0, max_val * 1.30],
+        ),
+        yaxis=dict(
+            showgrid=False,
+            tickfont=dict(size=12, color="#f3f1fa"),
+            automargin=True,
+        ),
     )
+    # Override the margin from _CHART_LAYOUT to add right-side space for labels
+    fig.update_layout(margin=dict(l=0, r=40, t=32, b=0))
     return fig
 
 
@@ -575,6 +613,19 @@ def init_session():
         "running": False,
         "stream_log": [],
         "last_topic": "",
+        # Tracks what is currently displayed in the text input widget.
+        # Kept separately from last_topic so we can restore it after a
+        # rerun without relying on the disabled-widget value quirk.
+        "topic_input": "",
+        # ── History / Archive ─────────────────────────────────────────────────
+        # ID of the report currently open in the read-only viewer (None = closed)
+        "history_view_id": None,
+        # Current search query text in the History tab
+        "history_search": "",
+        # ID awaiting delete confirmation (None = no pending delete)
+        "history_delete_id": None,
+        # Flag to force a re-fetch of the history list after save/delete
+        "history_stale": False,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -734,6 +785,103 @@ def render_sidebar(meta: Optional[Dict[str, Any]], running: bool):
             for err in meta["errors"][:5]:
                 st.markdown(f'<div class="err-box">⚠ {err}</div>', unsafe_allow_html=True)
 
+        # ── HISTORY section ───────────────────────────────────────────────────
+        _render_history_sidebar_section()
+
+
+# ── History sidebar section ───────────────────────────────────────────────────
+
+def _render_history_sidebar_section() -> None:
+    """
+    Renders the collapsible History section at the bottom of the sidebar.
+    Shows a compact list of the 10 most recent reports.  Each row is a
+    button that opens the full report in the read-only viewer.
+    """
+    count = _report_store.count()
+    count_badge = (
+        f'<span style="display:inline-block;background:rgba(139,92,246,0.25);'
+        f'color:#a78bfa;border:1px solid rgba(139,92,246,0.35);border-radius:999px;'
+        f'padding:1px 8px;font-size:0.65rem;font-weight:700;margin-left:6px">'
+        f'{count}</span>'
+    )
+    st.markdown(
+        f'<div class="sidebar-label" style="margin-top:1.4rem">'
+        f'History {count_badge}</div>',
+        unsafe_allow_html=True,
+    )
+
+    if count == 0:
+        st.markdown(
+            '<div style="font-size:0.76rem;color:var(--text-low);'
+            'padding:0.4rem 0.2rem">No reports saved yet.</div>',
+            unsafe_allow_html=True,
+        )
+        return
+
+    # Load the 10 most-recent summaries for the sidebar preview
+    recent = _report_store.list_reports(limit=10)
+
+    for row in recent:
+        rid        = row["id"]
+        title      = row["title"] or "Untitled Report"
+        competitors = row.get("competitors") or ""
+        created_raw = row.get("created_at", "")
+
+        # Format the timestamp for display
+        try:
+            dt = datetime.fromisoformat(created_raw.replace("Z", "+00:00"))
+            ts = dt.strftime("%b %d, %H:%M")
+        except Exception:
+            ts = created_raw[:16] if created_raw else "–"
+
+        is_active = (st.session_state.get("history_view_id") == rid)
+        active_style = (
+            "border-color:rgba(139,92,246,0.5);background:rgba(139,92,246,0.08);"
+            if is_active else ""
+        )
+
+        # Competitor sub-label (truncate to keep sidebar compact)
+        sub_label = (competitors[:38] + "…") if len(competitors) > 38 else competitors
+        sub_html = (
+            f'<div style="font-size:0.66rem;color:var(--text-low);'
+            f'white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
+            f'{sub_label or "—"}</div>'
+        ) if sub_label else ""
+
+        st.markdown(
+            f'<div class="agent-row" style="cursor:pointer;{active_style}">'
+            f'<div class="agent-icon" style="background:var(--grad-brand);'
+            f'font-size:0.85rem">📄</div>'
+            f'<div class="agent-meta" style="min-width:0">'
+            f'<div class="a-name" style="white-space:nowrap;overflow:hidden;'
+            f'text-overflow:ellipsis;max-width:140px" title="{title}">'
+            f'{title[:36]}{"…" if len(title) > 36 else ""}</div>'
+            f'{sub_html}'
+            f'</div>'
+            f'<div style="font-size:0.64rem;color:var(--text-low);'
+            f'white-space:nowrap;text-align:right">{ts}</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+        if st.button(
+            "Open →",
+            key=f"hist_open_{rid}",
+            use_container_width=True,
+            help=f"Open: {title}",
+            type="primary",
+        ):
+            st.session_state["history_view_id"] = rid
+            st.rerun()
+        st.markdown("<div style='margin-bottom:0.5rem'></div>", unsafe_allow_html=True)
+
+    if count > 10:
+        st.markdown(
+            f'<div style="font-size:0.72rem;color:var(--text-low);'
+            f'text-align:center;padding:0.3rem 0">'
+            f'+ {count - 10} more — see History tab</div>',
+            unsafe_allow_html=True,
+        )
+
 
 # ── Briefing card helpers ─────────────────────────────────────────────────────
 
@@ -795,18 +943,27 @@ def render_pricing_moves(moves: List[Dict]):
         with col_chart:
             labels = [m.get("competitor", f"#{i+1}") for i, m in enumerate(moves)]
             values = [len(m.get("description", "").split()) for m in moves]
+            max_val = max(values) if values else 1
             fig = go.Figure(go.Bar(
                 x=values, y=labels, orientation="h",
                 marker_color="#22d3ee",
                 text=values, textposition="outside",
                 textfont=dict(size=11, color="#f3f1fa"),
+                cliponaxis=False,
             ))
             fig.update_layout(
                 **_CHART_LAYOUT, height=max(200, len(moves) * 55),
                 title=dict(text="Coverage per Competitor", font=dict(size=13, color="#f3f1fa"), x=0),
-                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                yaxis=dict(showgrid=False, tickfont=dict(size=12, color="#f3f1fa")),
+                xaxis=dict(
+                    showgrid=False, zeroline=False, showticklabels=False,
+                    range=[0, max_val * 1.30],
+                ),
+                yaxis=dict(
+                    showgrid=False, tickfont=dict(size=12, color="#f3f1fa"),
+                    automargin=True,
+                ),
             )
+            fig.update_layout(margin=dict(l=0, r=40, t=32, b=0))
             st.plotly_chart(fig, use_container_width=True, config=_PLOTLY_CONFIG)
 
         with col_detail:
@@ -862,42 +1019,70 @@ def render_product_launches(launches: List[Dict]):
         labels = list(counts.keys())
         values = list(counts.values())
         colours = _PALETTE[:len(labels)]
+        max_val = max(values) if values else 1
         fig = go.Figure(go.Bar(
             x=labels, y=values,
             marker=dict(color=colours, line=dict(color="rgba(255,255,255,0.1)", width=1)),
             text=values, textposition="outside",
             textfont=dict(size=12, color="#f3f1fa"),
+            cliponaxis=False,
         ))
         fig.update_layout(
-            **_CHART_LAYOUT, height=260,
+            **_CHART_LAYOUT,
+            # Extra top headroom so "outside" count labels above bars are never clipped
+            height=max(280, len(labels) * 80),
             title=dict(text="Launches per Competitor", font=dict(size=13, color="#f3f1fa"), x=0),
-            xaxis=dict(showgrid=False, tickfont=dict(size=11, color="#f3f1fa")),
-            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            xaxis=dict(showgrid=False, tickfont=dict(size=11, color="#f3f1fa"), automargin=True),
+            yaxis=dict(
+                showgrid=False, zeroline=False, showticklabels=False,
+                range=[0, max_val * 1.30],
+            ),
             bargap=0.35,
         )
+        fig.update_layout(margin=dict(l=0, r=10, t=48, b=0))
         st.plotly_chart(fig, use_container_width=True, config=_PLOTLY_CONFIG)
 
-        # Mini scatter timeline below chart
+        # ── Launch Sequence: fixed-column dot plot ────────────────────────────
+        # All dots share x=0 so they form a clean vertical list aligned with
+        # the y-axis labels. Text is rendered to the right of each dot.
         if len(launches) >= 2:
-            y_labels = [f'{pl.get("competitor","?")} · {pl.get("product_name","?")}' for pl in launches]
-            fig2 = go.Figure()
-            for i, label in enumerate(y_labels):
-                fig2.add_trace(go.Scatter(
-                    x=[i + 1], y=[label],
-                    mode="markers",
-                    marker=dict(size=14, color=_PALETTE[i % len(_PALETTE)],
-                                line=dict(color="rgba(255,255,255,0.3)", width=2)),
-                    showlegend=False,
-                    hovertemplate=f"{label}<extra></extra>",
-                ))
+            y_labels = [
+                f'{pl.get("competitor", "?")} · {pl.get("product_name", "?")}'
+                for pl in launches
+            ]
+            fig2 = go.Figure(go.Scatter(
+                x=[0] * len(y_labels),
+                y=y_labels,
+                mode="markers+text",
+                marker=dict(
+                    size=14,
+                    color=_PALETTE[:len(y_labels)],
+                    line=dict(color="rgba(255,255,255,0.3)", width=2),
+                ),
+                text=y_labels,
+                textposition="middle right",
+                textfont=dict(size=10, color="#b6b1cc"),
+                showlegend=False,
+                hovertemplate="%{y}<extra></extra>",
+            ))
+            # Right margin wide enough for the longest label; hide x-axis entirely
+            max_label_len = max(len(lbl) for lbl in y_labels) if y_labels else 20
             fig2.update_layout(
-                **_CHART_LAYOUT, height=max(180, len(launches) * 46),
+                **_CHART_LAYOUT,
+                height=max(180, len(launches) * 52),
                 title=dict(text="Launch Sequence", font=dict(size=13, color="#f3f1fa"), x=0),
-                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False,
-                           range=[0, len(launches) + 1]),
-                yaxis=dict(showgrid=False, tickfont=dict(size=10, color="#f3f1fa"),
-                           autorange="reversed"),
+                xaxis=dict(
+                    showgrid=False, zeroline=False, showticklabels=False,
+                    range=[-0.5, max_label_len * 0.065 + 0.5],
+                ),
+                yaxis=dict(
+                    showgrid=False,
+                    showticklabels=False,   # labels are the dot text, not tick labels
+                    autorange="reversed",
+                    automargin=True,
+                ),
             )
+            fig2.update_layout(margin=dict(l=10, r=10, t=40, b=0))
             st.plotly_chart(fig2, use_container_width=True, config=_PLOTLY_CONFIG)
 
     with col_detail:
@@ -1794,6 +1979,289 @@ def run_with_progress(topic: str, max_sources: int, max_steps: int, container) -
     return final_state.get("briefing_output") or {}
 
 
+# ── History: full-screen read-only report viewer ──────────────────────────────
+
+def render_history_page(report_id: str) -> None:
+    """
+    Renders a stored report in read-only mode, filling the full content area.
+    A Back button at the top clears history_view_id and returns to the main view.
+    """
+    # ── Back button row ───────────────────────────────────────────────────────
+    col_back, col_title = st.columns([1, 7])
+    with col_back:
+        if st.button("← Back", use_container_width=True, key="hist_back_btn"):
+            st.session_state["history_view_id"] = None
+            st.rerun()
+
+    # ── Load the briefing ─────────────────────────────────────────────────────
+    briefing = _report_store.get(report_id)
+    if briefing is None:
+        st.error(f"Report `{report_id}` not found in the archive.")
+        return
+
+    meta = briefing.get("run_metadata") or {}
+    topic = meta.get("topic") or "Untitled Report"
+    created_raw = ""
+    # Try to get the timestamp from the DB summary instead
+    summary_rows = _report_store.search(report_id, limit=1)
+    if summary_rows:
+        created_raw = summary_rows[0].get("created_at", "")
+    if not created_raw:
+        created_raw = meta.get("completed_at") or meta.get("started_at") or ""
+
+    try:
+        dt = datetime.fromisoformat(str(created_raw).replace("Z", "+00:00"))
+        ts = dt.strftime("%A, %B %d %Y · %H:%M UTC")
+    except Exception:
+        ts = str(created_raw)[:19] if created_raw else "–"
+
+    with col_title:
+        st.markdown(
+            f'<div style="padding:0.25rem 0">'
+            f'<span style="font-size:0.72rem;font-weight:700;letter-spacing:0.1em;'
+            f'color:var(--violet-2);text-transform:uppercase">Archived Report</span><br>'
+            f'<span style="font-size:1.05rem;font-weight:700;color:var(--text-hi)">'
+            f'{topic}</span> '
+            f'<span style="font-size:0.78rem;color:var(--text-low)">{ts}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+    # ── Read-only badge ───────────────────────────────────────────────────────
+    st.markdown(
+        '<div style="display:inline-flex;align-items:center;gap:6px;'
+        'background:rgba(251,191,36,0.10);border:1px solid rgba(251,191,36,0.3);'
+        'border-radius:999px;padding:3px 12px;font-size:0.74rem;font-weight:700;'
+        'color:#fbbf24;margin-bottom:1rem">🔒 Read-only archive view</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.divider()
+
+    # ── Reuse the existing full briefing renderer ─────────────────────────────
+    render_briefing(briefing)
+
+
+# ── History: main tab (table + search + delete) ───────────────────────────────
+
+def render_history_tab() -> None:
+    """
+    Renders the full History & Archive tab inside the main content area.
+
+    Layout
+    ------
+    • Search box (filters by title / topic / competitors)
+    • Summary metrics: total reports, date range
+    • Sortable results table (newest first)
+    • Per-row: Open button + Delete button with inline confirmation
+    """
+    from datetime import timezone
+
+    st.markdown(
+        '<div style="font-size:0.7rem;font-weight:800;letter-spacing:0.12em;'
+        'color:var(--violet-2);text-transform:uppercase;margin-bottom:0.8rem">'
+        '📚 Report History &amp; Archive</div>',
+        unsafe_allow_html=True,
+    )
+
+    # ── Search bar ────────────────────────────────────────────────────────────
+    search_query = st.text_input(
+        "Search reports",
+        value=st.session_state.get("history_search", ""),
+        placeholder="Filter by topic, title, or competitor name…",
+        key="history_search_input",
+        label_visibility="collapsed",
+    )
+    st.session_state["history_search"] = search_query
+
+    # ── Load rows ─────────────────────────────────────────────────────────────
+    if search_query.strip():
+        rows = _report_store.search(search_query.strip())
+    else:
+        rows = _report_store.list_reports()
+
+    total_db = _report_store.count()
+
+    # ── Summary metrics strip ─────────────────────────────────────────────────
+    m1, m2, m3 = st.columns(3)
+    with m1:
+        st.markdown(
+            f'<div style="background:rgba(255,255,255,0.035);border:1px solid '
+            f'rgba(255,255,255,0.08);border-top:3px solid #8b5cf6;border-radius:12px;'
+            f'padding:0.75rem 1rem;">'
+            f'<div style="font-size:1.6rem;font-weight:800;color:#f3f1fa">{total_db}</div>'
+            f'<div style="font-size:0.66rem;font-weight:700;color:#7c7796;'
+            f'text-transform:uppercase;letter-spacing:0.09em">Total Reports</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+    with m2:
+        match_count = len(rows)
+        st.markdown(
+            f'<div style="background:rgba(255,255,255,0.035);border:1px solid '
+            f'rgba(255,255,255,0.08);border-top:3px solid #22d3ee;border-radius:12px;'
+            f'padding:0.75rem 1rem;">'
+            f'<div style="font-size:1.6rem;font-weight:800;color:#f3f1fa">{match_count}</div>'
+            f'<div style="font-size:0.66rem;font-weight:700;color:#7c7796;'
+            f'text-transform:uppercase;letter-spacing:0.09em">Showing</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+    with m3:
+        if rows:
+            try:
+                newest = datetime.fromisoformat(
+                    rows[0]["created_at"].replace("Z", "+00:00")
+                ).strftime("%b %d, %Y")
+            except Exception:
+                newest = "–"
+        else:
+            newest = "–"
+        st.markdown(
+            f'<div style="background:rgba(255,255,255,0.035);border:1px solid '
+            f'rgba(255,255,255,0.08);border-top:3px solid #34d399;border-radius:12px;'
+            f'padding:0.75rem 1rem;">'
+            f'<div style="font-size:1.0rem;font-weight:800;color:#f3f1fa;line-height:1.3">'
+            f'{newest}</div>'
+            f'<div style="font-size:0.66rem;font-weight:700;color:#7c7796;'
+            f'text-transform:uppercase;letter-spacing:0.09em">Latest Report</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("<div style='height:0.8rem'></div>", unsafe_allow_html=True)
+
+    # ── Empty state ───────────────────────────────────────────────────────────
+    if not rows:
+        st.markdown(
+            '<div class="welcome-box" style="padding:2.5rem 1.5rem">'
+            '<div class="w-icon" style="width:52px;height:52px;font-size:1.4rem">📭</div>'
+            + (
+                '<h3>No reports match your search</h3>'
+                f'<p>Try a different keyword — {total_db} report(s) are stored.</p>'
+                if search_query else
+                '<h3>No reports saved yet</h3>'
+                '<p>Run a brief to start building your archive.</p>'
+            )
+            + '</div>',
+            unsafe_allow_html=True,
+        )
+        return
+
+    # ── Table header ──────────────────────────────────────────────────────────
+    st.markdown(
+        '<div style="display:grid;grid-template-columns:1fr 2fr 1.4fr 1fr 90px 90px;'
+        'gap:0.5rem;padding:0.45rem 0.9rem;'
+        'font-size:0.64rem;font-weight:800;letter-spacing:0.1em;'
+        'color:var(--text-low);text-transform:uppercase;'
+        'border-bottom:1px solid var(--border-soft);margin-bottom:0.3rem">'
+        '<span>Report ID</span>'
+        '<span>Title / Topic</span>'
+        '<span>Competitors</span>'
+        '<span>Date &amp; Time</span>'
+        '<span style="text-align:center">Open</span>'
+        '<span style="text-align:center">Delete</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    # ── Pending delete confirmation state ─────────────────────────────────────
+    delete_pending_id = st.session_state.get("history_delete_id")
+
+    for row in rows:
+        rid         = row["id"]
+        title       = row["title"] or "Untitled Report"
+        topic       = row["topic"] or "–"
+        competitors = row.get("competitors") or "–"
+        created_raw = row.get("created_at", "")
+        duration    = row.get("duration_sec")
+
+        try:
+            dt = datetime.fromisoformat(created_raw.replace("Z", "+00:00"))
+            ts = dt.strftime("%b %d %Y, %H:%M")
+        except Exception:
+            ts = created_raw[:16] if created_raw else "–"
+
+        dur_label = f"{int(duration)}s" if duration else "–"
+        is_viewing = (st.session_state.get("history_view_id") == rid)
+        is_deleting = (delete_pending_id == rid)
+
+        # Highlight row that is currently open in the viewer
+        row_style = (
+            "background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.3);"
+            if is_viewing else
+            "background:var(--glass);border:1px solid var(--border-soft);"
+        )
+        if is_deleting:
+            row_style = "background:rgba(244,63,94,0.07);border:1px solid rgba(244,63,94,0.35);"
+
+        st.markdown(
+            f'<div style="display:grid;grid-template-columns:1fr 2fr 1.4fr 1fr 90px 90px;'
+            f'gap:0.5rem;padding:0.55rem 0.9rem;border-radius:10px;{row_style}'
+            f'margin-bottom:0.35rem;align-items:center">'
+            # Run ID
+            f'<code style="font-size:0.72rem;color:var(--text-low)">{rid}</code>'
+            # Title + topic
+            f'<div><div style="font-size:0.84rem;font-weight:700;color:var(--text-hi);'
+            f'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px"'
+            f' title="{title}">{title[:55]}{"…" if len(title)>55 else ""}</div>'
+            f'<div style="font-size:0.70rem;color:var(--text-low)">{topic[:60]}</div></div>'
+            # Competitors
+            f'<div style="font-size:0.76rem;color:var(--text-mid);white-space:nowrap;'
+            f'overflow:hidden;text-overflow:ellipsis" title="{competitors}">'
+            f'{competitors[:42]}{"…" if len(competitors)>42 else ""}</div>'
+            # Date + duration
+            f'<div><div style="font-size:0.78rem;color:var(--text-mid)">{ts}</div>'
+            f'<div style="font-size:0.68rem;color:var(--text-low)">{dur_label}</div></div>'
+            # Button placeholders (rendered below as real Streamlit buttons)
+            f'<div></div><div></div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+        # Render actual Streamlit buttons in a tight column pair below the row
+        # (Streamlit cannot place buttons inside raw HTML; we overlap them with CSS offsets)
+        btn_col_open, btn_col_del = st.columns([1, 1])
+
+        with btn_col_open:
+            open_label = "✓ Open" if is_viewing else "Open →"
+            if st.button(open_label, key=f"tab_open_{rid}", use_container_width=True):
+                st.session_state["history_view_id"] = rid
+                st.session_state["history_delete_id"] = None
+                st.rerun()
+
+        with btn_col_del:
+            if is_deleting:
+                # ── Confirmation row ──────────────────────────────────────────
+                st.markdown(
+                    '<div style="background:rgba(244,63,94,0.12);border:1px solid '
+                    'rgba(244,63,94,0.4);border-radius:9px;padding:0.45rem 0.7rem;'
+                    'font-size:0.76rem;color:#fda4af;margin-bottom:0.3rem">'
+                    '⚠ Delete this report permanently?</div>',
+                    unsafe_allow_html=True,
+                )
+                conf_col, cancel_col = st.columns(2)
+                with conf_col:
+                    if st.button("✓ Confirm", key=f"del_confirm_{rid}", use_container_width=True):
+                        _report_store.delete(rid)
+                        st.session_state["history_delete_id"] = None
+                        st.session_state["history_stale"] = True
+                        # If user was viewing this report, close the viewer
+                        if st.session_state.get("history_view_id") == rid:
+                            st.session_state["history_view_id"] = None
+                        st.rerun()
+                with cancel_col:
+                    if st.button("✗ Cancel", key=f"del_cancel_{rid}", use_container_width=True):
+                        st.session_state["history_delete_id"] = None
+                        st.rerun()
+            else:
+                if st.button("🗑 Delete", key=f"tab_del_{rid}", use_container_width=True):
+                    st.session_state["history_delete_id"] = rid
+                    st.rerun()
+
+        st.markdown("<div style='height:0.1rem'></div>", unsafe_allow_html=True)
+
+
 # ── Main entrypoint ───────────────────────────────────────────────────────────
 
 def main():
@@ -1807,21 +2275,50 @@ def main():
     render_sidebar(meta, running)
 
     # ── Input row — always rendered at the same position ─────────────────────
+    # During execution the input is read-only (disabled) but its VALUE is
+    # explicitly set from session state so the topic stays visible.
+    # The "Clear Chat" button is ALWAYS shown (enabled once there is a topic
+    # or a completed briefing; disabled only when there is nothing to clear).
     with st.container():
-        col_input, col_btn = st.columns([4, 1])
+        col_input, col_run, col_clear = st.columns([4, 1, 1])
+
         with col_input:
+            # Always show the stored topic — even while running — so the user
+            # can see what the crew is working on.
+            displayed_topic = st.session_state.get("last_topic", "") if running else st.session_state.get("topic_input", "")
             topic = st.text_input(
                 "Market / topic to brief",
                 placeholder="e.g. CRM software market, AI coding assistants, fintech payments…",
-                value=st.session_state.get("last_topic", ""),
+                value=displayed_topic,
                 disabled=running,
+                key="topic_widget",
                 label_visibility="collapsed",
             )
-        with col_btn:
+            # Keep topic_input in sync whenever the user edits the field
+            # (only possible when not running, since the widget is disabled then)
+            if not running:
+                st.session_state["topic_input"] = topic
+
+        with col_run:
             run_clicked = st.button(
                 "▶ Run Brief",
                 disabled=running,
                 use_container_width=True,
+            )
+
+        with col_clear:
+            # Clear Chat is always visible. Disabled only when there is
+            # genuinely nothing to clear (no topic typed, no briefing).
+            has_content = bool(
+                st.session_state.get("last_topic")
+                or st.session_state.get("topic_input")
+                or briefing
+            )
+            clear_clicked = st.button(
+                "🗑 Clear Chat",
+                disabled=(not has_content) or running,
+                use_container_width=True,
+                help="Clear the current briefing and topic. Available after a run completes.",
             )
 
     max_sources, max_steps = render_settings_expander()
@@ -1831,50 +2328,105 @@ def main():
     # placeholder so nothing above or below it ever shifts.
     content_slot = st.empty()
 
-    # ── Handle button click ───────────────────────────────────────────────────
-    if run_clicked:
-        topic = topic.strip()
-        if not topic:
+    # ── Handle Clear Chat ─────────────────────────────────────────────────────
+    if clear_clicked and not running:
+        st.session_state["briefing"]    = None
+        st.session_state["last_topic"]  = ""
+        st.session_state["topic_input"] = ""
+        st.session_state["running"]     = False
+        st.rerun()
+
+    # ── Handle Run button click ───────────────────────────────────────────────
+    if run_clicked and not running:
+        topic_value = topic.strip()
+        if not topic_value:
             st.warning("Please enter a topic before running.")
         else:
-            st.session_state["running"] = True
-            st.session_state["last_topic"] = topic
-            st.session_state["briefing"] = None
+            # Save the topic BEFORE setting running=True so it survives the
+            # rerun and the disabled text_input still shows it.
+            st.session_state["last_topic"]  = topic_value
+            st.session_state["topic_input"] = topic_value
+            st.session_state["running"]     = True
+            # Do NOT clear briefing here — keep the previous result visible
+            # in session state until the new one arrives. The content_slot
+            # will show the progress UI instead regardless.
             st.rerun()
 
     # ── Execute pipeline (running state) ─────────────────────────────────────
-    if running and briefing is None:
-        topic = st.session_state.get("last_topic", "")
-        briefing_dict = run_with_progress(topic, max_sources, max_steps, content_slot)
+    if running:
+        topic_value = st.session_state.get("last_topic", "")
+
+        # Render a stable wrapper inside content_slot that contains:
+        #   1. A topic banner (always visible so the user knows what's running)
+        #   2. A live-updating progress card
+        # We use a single st.empty so run_with_progress can overwrite it on
+        # each pipeline step without shifting the surrounding layout.
+        with content_slot.container():
+            st.markdown(
+                f'<div style="background:rgba(139,92,246,0.10);border:1px solid '
+                f'rgba(139,92,246,0.3);border-radius:12px;padding:0.55rem 1rem;'
+                f'font-size:0.86rem;color:#a78bfa;margin-bottom:0.8rem;">'
+                f'🔄 <strong>Running brief for:</strong> {topic_value}</div>',
+                unsafe_allow_html=True,
+            )
+            progress_placeholder = st.empty()
+
+        briefing_dict = run_with_progress(topic_value, max_sources, max_steps, progress_placeholder)
 
         if briefing_dict:
             st.session_state["briefing"] = briefing_dict
+            # ── Auto-save to history archive ──────────────────────────────────
+            try:
+                _report_store.save(briefing_dict)
+                st.session_state["history_stale"] = True
+            except Exception:
+                pass  # never block the UI on a storage failure
         st.session_state["running"] = False
         st.rerun()
 
     # ── Render completed briefing ─────────────────────────────────────────────
     elif briefing:
         with content_slot.container():
-            st.divider()
-            render_briefing(briefing)
+            # ── History viewer takes over the full content area ───────────────
+            history_view_id = st.session_state.get("history_view_id")
+            if history_view_id:
+                render_history_page(history_view_id)
+            else:
+                # Normal current-briefing view with an extra History tab
+                tabs = st.tabs(["📊 Current Brief", "📚 History"])
+                with tabs[0]:
+                    st.divider()
+                    render_briefing(briefing)
+                with tabs[1]:
+                    render_history_tab()
 
     # ── Welcome state ─────────────────────────────────────────────────────────
     else:
+        # Check if the user navigated to a history entry from the sidebar
+        history_view_id = st.session_state.get("history_view_id")
         with content_slot.container():
-            render_preview_strip()
-            st.markdown(
-                """
-                <div class="welcome-box">
-                    <div class="w-icon">📊</div>
-                    <h3>Enter a market topic above to generate your briefing</h3>
-                    <p>
-                        The AI crew will search the web, analyse competitors, and produce a
-                        structured weekly briefing with inline citations — in under 3 minutes.
-                    </p>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+            if history_view_id:
+                render_history_page(history_view_id)
+            else:
+                tabs = st.tabs(["📊 New Brief", "📚 History"])
+                with tabs[0]:
+                    render_preview_strip()
+                    st.markdown("<div style='height:1.5rem'></div>", unsafe_allow_html=True)
+                    st.markdown(
+                        """
+                        <div class="welcome-box">
+                            <div class="w-icon">📊</div>
+                            <h3>Enter a market topic above to generate your briefing</h3>
+                            <p>
+                                The AI crew will search the web, analyse competitors, and produce a
+                                structured weekly briefing with inline citations — in under 3 minutes.
+                            </p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                with tabs[1]:
+                    render_history_tab()
 
 
 if __name__ == "__main__":
